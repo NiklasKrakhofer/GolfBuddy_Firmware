@@ -57,23 +57,7 @@ void softReset() {
 }
 
 void vSendTransmitdataToPi() {
-    vCommitTransmitData();
-    uint8_t byteArray[sizeof(TransmitData)];
-    memcpy(byteArray, &TransmitData, sizeof(TransmitData));
-    Serial.println(sizeof(TransmitData));
-    piSerial.write(byteArray, sizeof(TransmitData));
-}
-
-void vCommitTransmitData() {
-    TransmitData.u8StartByte = u8StartByte;
-    TransmitData.iBatteryLevel = iBatteryLevel;
-    TransmitData.iSolarpanelRecuperationLevel = iSolarpanelRecuperationLevel;
-    TransmitData.fOutsideTemperature = fOutsideTemperature;
-    TransmitData.fOutsideHumidity = fOutsideHumidity;
-    TransmitData.u8ObstacleInWay = bObstacleInWay;
-    TransmitData.dLatitudeGolfBuddy = dLatitudeGolfBuddy;
-    TransmitData.dLongitudeGolfBuddy = dLongitudeGolfBuddy;
-    TransmitData.fFacingDirection = fFacingDirection;
+    piSerial.write("Hello World");
 }
 
 void vPushGPSData(float latitude, float longitude) {

@@ -50,6 +50,7 @@ void vReceiveDataFromRaspberryPI(void* pvParameters) {
     while (1) {   
         if (piSerial.available() > 0) {
             String sReceivedData = piSerial.readStringUntil('\n');
+            Serial.println(sReceivedData);
 
             String sDataSegments[10];
             int iDataSegmentIndex = 0;

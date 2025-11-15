@@ -21,7 +21,6 @@ void vReadCalibrationDataBME280();
 void vSetCtrlRegisterGY271(uint8_t ui8OverSampling, uint8_t ui8Range, uint8_t ui8DataRate, uint8_t ui8Mode);
 void softReset(); //
 void vSendTransmitdataToPi();
-void vCommitTransmitData();
 void vPushGPSData(float latitude, float longitude);
 int32_t i32ReadRawTemperatureBME280();
 float fCompensateTemperatureBME280(int32_t i32Adc_T);
