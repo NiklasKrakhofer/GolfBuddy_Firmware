@@ -46,10 +46,10 @@ extern int32_t i32T_fine;
 
 // Transmit data struct
 struct TransmitDataToPi {
-    int     iBatteryLevel; //Muss be set with value when measured. 
-    double  dLatitudeGolfBuddy;
-    double  dLongitudeGolfBuddy;
-    float   fFacingDirection;
+    int     iBatteryLevel = 0; //Muss be set with value when measured. 
+    double  dLatitudeGolfBuddy = 0.0;
+    double  dLongitudeGolfBuddy = 0.0;
+    float   fFacingDirection = 0.0;
 };
 extern TransmitDataToPi RaspPI_transmitData;
 

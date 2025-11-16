@@ -50,8 +50,7 @@ void vReceiveDataFromRaspberryPI(void* pvParameters) {
     while (1) {   
         if (piSerial.available() > 0) {
             String sReceivedData = piSerial.readStringUntil('\n');
-            Serial.println(sReceivedData);
-
+            
             String sDataSegments[10];
             int iDataSegmentIndex = 0;
             String sCurrentDataSegment = "";
@@ -88,12 +87,7 @@ void vReceiveDataFromRaspberryPI(void* pvParameters) {
     }
 }
 
-//Task: Sends Serial Data to Raspberry Pi every 1s including: u8StartByte
-//                                                            iBatteryLevel
-//                                                            iSolarpanelRecuperationLevel
-//                                                            fOutsideTemperature
-//                                                            fOutsideHumidity
-//                                                            u8ObstacleInWay
+//Task: Sends Serial Data to Raspberry Pi every 1s including: iBatteryLevel
 //                                                            dLatitudeGolfBuddy
 //                                                            dLongitudeGolfBuddy
 //                                                            fFacingDirection
