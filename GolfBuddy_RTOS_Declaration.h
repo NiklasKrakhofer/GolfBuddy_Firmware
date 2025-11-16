@@ -44,30 +44,14 @@ extern int16_t i16Dig_T2;
 extern int16_t i16Dig_T3;
 extern int32_t i32T_fine;
 
-// Transmit data
-extern uint8_t u8StartByte;
-extern int iBatteryLevel;
-extern int iSolarpanelRecuperationLevel;
-extern float fOutsideTemperature;
-extern float fOutsideHumidity;
-extern bool bObstacleInWay;
-extern double dLatitudeGolfBuddy;
-extern double dLongitudeGolfBuddy;
-extern float fFacingDirection;
-
 // Transmit data struct
-struct __attribute__((packed)) sTransmitDataToPi {
-    uint8_t u8StartByte;
-    int     iBatteryLevel;
-    int     iSolarpanelRecuperationLevel;
-    float   fOutsideTemperature;
-    float   fOutsideHumidity;
-    uint8_t u8ObstacleInWay;
+struct TransmitDataToPi {
+    int     iBatteryLevel; //Muss be set with value when measured. 
     double  dLatitudeGolfBuddy;
     double  dLongitudeGolfBuddy;
     float   fFacingDirection;
 };
-extern sTransmitDataToPi TransmitData;
+extern TransmitDataToPi RaspPI_transmitData;
 
 // GPS buffer
 extern GPSCoordinates Buffer_Coordinates[BUFFER_Coordinates_SIZE];

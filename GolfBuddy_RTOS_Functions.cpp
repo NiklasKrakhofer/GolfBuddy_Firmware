@@ -57,7 +57,14 @@ void softReset() {
 }
 
 void vSendTransmitdataToPi() {
-    piSerial.write("Hello World");
+    String out =
+        String(RaspPI_transmitData.iBatteryLevel) + ";" +
+        String(RaspPI_transmitData.dLatitudeGolfBuddy) + ";" +
+        String(RaspPI_transmitData.dLongitudeGolfBuddy) + ";" +
+        String(RaspPI_transmitData.fFacingDirection) + ";" +
+        "\n";
+
+    piSerial.write(out.c_str());
 }
 
 void vPushGPSData(float latitude, float longitude) {
@@ -177,6 +184,7 @@ double dGetHeading() {
 
     double heading = atan2((double)y_cal, (double)x_cal) * 180.0 / M_PI;
     if (heading < 0) heading += 360.0;
+    RaspPI_transmitData.fFacingDirection = heading;
     return heading;
 }
 

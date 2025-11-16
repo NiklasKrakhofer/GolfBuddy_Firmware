@@ -30,20 +30,9 @@ uint16_t u16Dig_T1;
 int16_t i16Dig_T2;
 int16_t i16Dig_T3;
 int32_t i32T_fine;
-uint8_t u8StartByte = 0x7E;
-int iBatteryLevel = 10;
-int iSolarpanelRecuperationLevel = 30;
-float fOutsideTemperature = 0.0;
-float fOutsideHumidity = 0.0;
-
-// Obstacle & position
-bool bObstacleInWay = true;
-double dLatitudeGolfBuddy = 0.0;
-double dLongitudeGolfBuddy = 0.0;
-float fFacingDirection = 0.0;
 
 // Transmit data struct
-sTransmitDataToPi TransmitData;
+TransmitDataToPi RaspPI_transmitData;
 
 // GPS buffer
 GPSCoordinates Buffer_Coordinates[BUFFER_Coordinates_SIZE];

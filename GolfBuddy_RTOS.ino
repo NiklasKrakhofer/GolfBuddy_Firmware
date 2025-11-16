@@ -113,10 +113,10 @@ void vReadGPSData(void* pvParameters) {
         if (gps.location.isUpdated() && (millis() - lastUpdate > 1500)) {
             lastUpdate = millis();
             trolleyCoords.dGolfTrolley_latitude = gps.location.lat();
-            trolleyCoords.dGolfTrolley_longitude = gps.location.lng();
+            trolleyCoords.dGolfTrolley_longitude = gps.location.lng();   
 
-            dLatitudeGolfBuddy = trolleyCoords.dGolfTrolley_latitude;
-            dLongitudeGolfBuddy = trolleyCoords.dGolfTrolley_longitude;    
+            RaspPI_transmitData.dLatitudeGolfBuddy = trolleyCoords.dGolfTrolley_latitude;
+            RaspPI_transmitData.dLongitudeGolfBuddy = trolleyCoords.dGolfTrolley_longitude;
         }
         while (gpsSerial.available() > 0) {
             gps.encode(gpsSerial.read());
