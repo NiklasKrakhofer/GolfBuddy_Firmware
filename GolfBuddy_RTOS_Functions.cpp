@@ -205,7 +205,6 @@ bool bGetOldestGPSCoordinate(GPSCoordinates& dataOut) {
 }
 
 void vPlayerTracking(const GPSCoordinates& targetCoords, const GPSCoordinates& currentCoords) {
-
     if (iBuffer_Coordinates_WriteIndex > iBuffer_Coordinates_ReadIndex) {
         iTrackingRPM = 300; //schneller
     }
@@ -411,6 +410,7 @@ void vCheckSurrounding() {
     static unsigned int sensorIndex = 0;
     sensorIndex = (sensorIndex + 1) % 3;
     float fDistance = fGetMessuredDistanceofHCSR04(cSensorIDArray[sensorIndex]);
+
     if (fDistance < 100) {
         bIsBreakingActive = true;
         iBreakIntensityMotorLeft = EmergencyBreaking;

@@ -6,7 +6,6 @@
 //      vTaskReceiveDataFromTracker ausprogrammieren
 //      Ausweichen durchtesten
 
-//Defines for different Code usage
 //#define ObsticaleDetectionWithDogeing
 
 #include "GolfBuddy_RTOS_Declaration.h"
@@ -46,7 +45,7 @@ TaskHandle_t xHandleDodge;
 //                                                             DriveMode = 2 -> MotorSupport activated
 //      Decodes Received Massage and sets Variables.
 //Param: -
-void vReceiveDataFromRaspberryPI(void* pvParameters) {
+void ReceiveDataFromRaspPI(void* pvParameters) {
     while (1) {   
         if (piSerial.available() > 0) {
             String sReceivedData = piSerial.readStringUntil('\n');
@@ -92,7 +91,7 @@ void vReceiveDataFromRaspberryPI(void* pvParameters) {
 //                                                            dLongitudeGolfBuddy
 //                                                            fFacingDirection
 //Param: -
-void vTransmittDataToRaspberryPI(void* pvParameters) {
+void TransmittDataToRaspPI(void* pvParameters) {
     while (1) {
         vSendTransmitdataToPi();
         vTaskDelay(1000 / portTICK_PERIOD_MS);
@@ -101,7 +100,7 @@ void vTransmittDataToRaspberryPI(void* pvParameters) {
 
 //Task: Reads GPS Coordinates from GPS Modul every 1.5s
 //Param: -
-void vReadGPSData(void* pvParameters) {
+void ReadGPSData(void* pvParameters) {
     unsigned long lastUpdate = millis();
     while (1) {
         if (gps.location.isUpdated() && (millis() - lastUpdate > 1500)) {
@@ -121,7 +120,7 @@ void vReadGPSData(void* pvParameters) {
 
 //Task: Reads Temperature from BME280 every 1s
 //Param: -
-void vReadTemperature(void* pvParameter) {
+void ReadTemperature(void* pvParameter) {
     while (1) {
         int32_t i32RawTemp = i32ReadRawTemperatureBME280();
         float fTemperature = fCompensateTemperatureBME280(i32RawTemp);
@@ -139,7 +138,7 @@ void vReadTemperature(void* pvParameter) {
 //  fMotorRightSpeed_kmh
 // 
 //Param: -
-void vMeassureMotorSpeed(void* pvParameter) {
+void MeassureMotorSpeed(void* pvParameter) {
     while (1) {
         vUpdateMeausuredMotorSpeed();
         vTaskDelay(100 / portTICK_PERIOD_MS);
@@ -149,7 +148,7 @@ void vMeassureMotorSpeed(void* pvParameter) {
 //Task: If targetCoordinates are in Queue and Tracking is enabled, then the Trolley drives to the target Coordinate.
 //      Else the Trolley stays in Parking and is not moving.
 //Param: -
-void vPlayerTracking(void* pvParameter) {
+void PlayerTracking(void* pvParameter) {
     GPSCoordinates targetCoords;
     while (1) {
         if (bIsPlayerTrackingActivated && !bDogingactive && !bIsBreakingActive) {
@@ -167,7 +166,7 @@ void vPlayerTracking(void* pvParameter) {
 
 //Task: If bIsMotorSupportActivated is activated and Touchsensor/s is/are triggerd both Motors are regulated to BaseSpeed. 
 //Param: -
-void vTaskMotorSupport(void* pvParameter) {
+void MotorSupport(void* pvParameter) {
     while (1) {
         if (bIsMotorSupportActivated && !bDogingactive) {
             vMotorSupport();
@@ -181,7 +180,7 @@ void vTaskMotorSupport(void* pvParameter) {
 //        ifndef ObsticaleDetectionWithDogeing: The Trolley is breaking if an obsticle detected by distance sensors. 
 //@param: -
 //@return: -
-void vTaskCheckSurrounding(void* pvParameter) {
+void CheckSurrounding(void* pvParameter) {
     while (1) {
         vCheckSurrounding();    
         vTaskDelay(100  / portTICK_PERIOD_MS);
@@ -190,7 +189,7 @@ void vTaskCheckSurrounding(void* pvParameter) {
 
 //Task: !
 //Param: -
-void vTaskReceiveDataFromTracker(void* pvParameter) {
+void ReceiveDataFromTracker(void* pvParameter) {
     while (1) {
         while (funkSerial.available()) {
             char c = funkSerial.read();
@@ -333,7 +332,7 @@ void vDodgeObsticle(void* pvParameter) {
 
 //Task: Breaks both Motors with a setable Intensity and Duration
 //Param: -
-void vTaskBreakMotors(void* parameter) {
+void BreakMotors(void* parameter) {
     static bool brakeInProgress = false;
     unsigned long startTime = millis();
 
@@ -481,7 +480,7 @@ void setup() {
     bufferMutex = xSemaphoreCreateMutex();
 
     xTaskCreatePinnedToCore(
-        vReceiveDataFromRaspberryPI,        // Funktion
+        ReceiveDataFromRaspPI,        // Funktion
         "ReceiveSerialDataFromRaspberryPI",// Name
         10000,                              // Stack
         NULL,                               // Parameter
@@ -491,7 +490,7 @@ void setup() {
     );
 
     xTaskCreatePinnedToCore(
-        vTransmittDataToRaspberryPI,        // Funktion
+        TransmittDataToRaspPI,        // Funktion
         "TransmittSerialDataToRaspberryPI",// Name
         10000,                              // Stack
         NULL,                               // Parameter
@@ -501,7 +500,7 @@ void setup() {
     );
 
     xTaskCreatePinnedToCore(
-        vReadGPSData,        // Funktion
+        ReadGPSData,        // Funktion
         "ReadGPSCoordinatesFromGPSModule",// Name
         10000,                              // Stack
         NULL,                               // Parameter
@@ -511,7 +510,7 @@ void setup() {
     );
 
     xTaskCreatePinnedToCore(
-        vReadTemperature,        // Funktion
+        ReadTemperature,        // Funktion
         "ReadTemperatureFromBME",// Name
         10000,                              // Stack
         NULL,                               // Parameter
@@ -521,7 +520,7 @@ void setup() {
     );
 
     xTaskCreatePinnedToCore(
-        vMeassureMotorSpeed,        // Funktion
+        MeassureMotorSpeed,        // Funktion
         "MeassureMotorSpeed",// Name
         10000,                              // Stack
         NULL,                               // Parameter
@@ -531,7 +530,7 @@ void setup() {
     );
 
     xTaskCreatePinnedToCore(
-        vPlayerTracking,        // Funktion
+        PlayerTracking,        // Funktion
         "Follow Player if enabled",// Name
         10000,                              // Stack
         NULL,                               // Parameter
@@ -541,7 +540,7 @@ void setup() {
     );
 
     xTaskCreatePinnedToCore(
-        vTaskMotorSupport,        // Funktion
+        MotorSupport,        // Funktion
         "Handle Motor Support if enabled",// Name
         10000,                              // Stack
         NULL,                               // Parameter
@@ -551,7 +550,7 @@ void setup() {
     );
 
     xTaskCreatePinnedToCore(
-        vTaskCheckSurrounding,        // Funktion
+        CheckSurrounding,        // Funktion
         "Check if an Obsticle is blocking the way",// Name
         10000,                              // Stack
         NULL,                               // Parameter
@@ -583,7 +582,7 @@ void setup() {
 #endif // ObsticaleDetectionWithDogeing
 
     xTaskCreatePinnedToCore(
-        vTaskReceiveDataFromTracker,        // Funktion
+        ReceiveDataFromTracker,        // Funktion
         "Receive Data from Tracker",// Name
         10000,                              // Stack
         NULL,                               // Parameter
@@ -593,7 +592,7 @@ void setup() {
     );
 
     xTaskCreatePinnedToCore(
-        vTaskBreakMotors,        // Funktion
+        BreakMotors,        // Funktion
         "Emergency Braking",// Name
         10000,                              // Stack
         NULL,                               // Parameter
