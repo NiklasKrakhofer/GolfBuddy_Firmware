@@ -393,6 +393,9 @@ void init() {
 
     pinMode(MotorLeftDrivingDirectionPin, OUTPUT);
     pinMode(MotorRightDrivingDirectionPin, OUTPUT);
+
+    pinMode(TouchSensorLeft, INPUT);
+    pinMode(TouchSensorRight, INPUT);
 }
 
 void initBME280() {
@@ -421,11 +424,10 @@ void initGY271() {
 }
 
 void initHC12() {
-    funkSerial.begin(BaudRate_9600, SERIAL_8N1, HC12RXPin, HC12TXPin);
+    funkSerial.begin(BaudRate_9600, SERIAL_8N1, HC12TXPin, HC12RXPin);
     pinMode(HC12SetPin, OUTPUT);
     digitalWrite(HC12SetPin, LOW);
     delay(2000);
-
 
     Serial.println("Sende AT+BAUD4 (9600 Baud)");
     funkSerial.println("AT+BAUD4");

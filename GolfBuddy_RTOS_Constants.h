@@ -81,9 +81,9 @@
 #define OSR_64          0b11000000
 
 // --- Defines ---
-#define HCSR04VorneLinks 0
-#define HCSR04VorneRechts 1
-#define HCSR04Hinten 2
+#define HCSR04VorneLinks 1
+#define HCSR04VorneRechts 2
+#define HCSR04Hinten 0
 
 #define BaudRate_9600 9600
 #define Delay_1000 1000

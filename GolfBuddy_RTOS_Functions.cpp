@@ -205,20 +205,25 @@ bool bGetOldestGPSCoordinate(GPSCoordinates& dataOut) {
 }
 
 void vPlayerTracking(const GPSCoordinates& targetCoords, const GPSCoordinates& currentCoords) {
+	// Determine tracking speed based on buffer status
     if (iBuffer_Coordinates_WriteIndex > iBuffer_Coordinates_ReadIndex) {
-        iTrackingRPM = 300; //schneller
+        iTrackingRPM = 300; // faster
     }
     else if (iBuffer_Coordinates_WriteIndex < iBuffer_Coordinates_ReadIndex) {
-        iTrackingRPM = 100; // langsamer
+		iTrackingRPM = 100; // slower
     }
-    else if (iBuffer_Coordinates_WriteIndex == iBuffer_Coordinates_ReadIndex) {
+	else if (iBuffer_Coordinates_WriteIndex == iBuffer_Coordinates_ReadIndex) { // TODO: check if this case is possible
         iTrackingRPM = 0; // stehen bleiben -> ziel erreicht
     }
+
+	// Update heading control to face target coordinate
     vUpdateHeadingControl(dGetHeading(), dGetTargetHeading(currentCoords, targetCoords), iTrackingRPM, 1);
 
+	// Regulate motors to desired RPM
     vRegulateMotorLeftRPM(fSollMotorLeftRPM);
     vRegulateMotorRightRPM(fSollMotorRightRPM);
    
+	// If within 2 meters, mark coordinate as reached and remove it from buffer
     if (dCalculateHaversine(currentCoords.dGolfTrolley_latitude, currentCoords.dGolfTrolley_longitude, targetCoords.dGolfTrolley_latitude, targetCoords.dGolfTrolley_longitude) < 2) {
         xSemaphoreTake(bufferMutex, portMAX_DELAY);
         iBuffer_Coordinates_ReadIndex = (iBuffer_Coordinates_ReadIndex + 1) % BUFFER_Coordinates_SIZE;
@@ -344,7 +349,7 @@ float fPIRegulate(float fSetpoint, float fAactual) {
 }
 
 void vMotorSupport() {
-    if (digitalRead(TouchSensorLeft) && digitalRead(TouchSensorRight)) {
+    if (digitalRead(TouchSensorLeft) || digitalRead(TouchSensorRight)) {
         vRegulateMotorLeftRPM(fBaseSpeedSetting);
         vRegulateMotorRightRPM(fBaseSpeedSetting);
     }
@@ -409,6 +414,7 @@ void vCheckSurrounding() {
 
     static unsigned int sensorIndex = 0;
     sensorIndex = (sensorIndex + 1) % 3;
+
     float fDistance = fGetMessuredDistanceofHCSR04(cSensorIDArray[sensorIndex]);
 
     if (fDistance < 100) {
