@@ -221,7 +221,7 @@ void vPlayerTracking(const GPSCoordinates& targetCoords, const GPSCoordinates& c
  //   }
     
 	// Update heading control to face target coordinate
-    vUpdateHeadingControl(RaspPI_transmitData.fFacingDirection, dGetTargetHeading(currentCoords, targetCoords), iTrackingRPM, 1);
+    vUpdateHeadingControl(RaspPI_transmitData.fFacingDirection, dGetTargetHeading(currentCoords, targetCoords), iTrackingRPM, 0.5);
     Serial.println(RaspPI_transmitData.fFacingDirection);
     Serial.println(currentCoords.dGolfTrolley_latitude);
     Serial.println(currentCoords.dGolfTrolley_longitude);

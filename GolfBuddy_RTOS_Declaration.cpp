@@ -93,7 +93,7 @@ long y_min = -331, y_max = 986;
 long z_min = -1011, z_max = 2023;
 long x_offset = 207, y_offset = 327, z_offset = 506;
 
-int iTrackingRPM;
+int iTrackingRPM = 50;
 
 const uint32_t brakeDuration = 3000;
 bool bIsBreakingActive = false;

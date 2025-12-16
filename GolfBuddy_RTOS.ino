@@ -150,6 +150,11 @@ void MeassureMotorSpeed(void* pvParameter) {
 //Param: -
 void PlayerTracking(void* pvParameter) {
     GPSCoordinates targetCoords;
+	// Make a set forward to get the trolley heading
+    vMakeASetForward();
+    delay(2000);
+    vRegulateMotorLeftRPM(0);
+    vRegulateMotorRightRPM(0);
     while (1) {
         if (bIsPlayerTrackingActivated && !bDogingactive && !bIsBreakingActive) {
             if (!targetCoordsBuffer.empty())
@@ -160,7 +165,7 @@ void PlayerTracking(void* pvParameter) {
                 vPlayerTracking(targetCoordsBuffer[0], trolleyCoords);
             }
         }
-        vTaskDelay(1 / portTICK_PERIOD_MS);
+        vTaskDelay(100 / portTICK_PERIOD_MS);
     }
 }
 

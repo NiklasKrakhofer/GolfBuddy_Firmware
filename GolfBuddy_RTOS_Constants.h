@@ -91,7 +91,7 @@
 #define AccelerationStepDelay_100 100
 #define AccelerationSteps 10
 #define pulsesPerTurn 48
-#define wheelDiameter 0.175
+#define wheelDiameter 0.175 // in meters
 
 #define MotorLeft 0
 #define MotorRight 1
