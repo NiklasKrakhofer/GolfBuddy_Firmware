@@ -18,7 +18,6 @@ void vResetBME280();
 uint8_t ui8ReadRegister(uint8_t ui8Reg);
 void vWriteRegister(uint8_t ui8Adress, uint8_t ui8Reg, uint8_t ui8Value);
 void vReadCalibrationDataBME280();
-void vSetCtrlRegisterGY271(uint8_t ui8OverSampling, uint8_t ui8Range, uint8_t ui8DataRate, uint8_t ui8Mode);
 void softReset(); //
 void vSendTransmitdataToPi();
 int32_t i32ReadRawTemperatureBME280();
@@ -27,7 +26,6 @@ void vUpdateMeausuredMotorSpeed();
 void vWriteRegGY271(uint8_t ui8Reg, uint8_t ui8Value);
 void vResetAndInitGY271();
 bool bReadRawDataGY271(int16_t& i16RawX, int16_t& i16RawY, int16_t& i16RawZ);
-double dGetHeading();
 void updateGetHeadingWithGPS();
 void vPlayerTracking(const GPSCoordinates& targetCoords, const GPSCoordinates& currentCoords);
 double dGetTargetHeading(GPSCoordinates from, GPSCoordinates to);
@@ -49,9 +47,6 @@ void vMakeASetBack();
 void vMakeASetForward();
 void vSpinToHeading(float fTargetHeading);
 void vAccelarate(int iIntensity);
-void vUpdateCalibrationDataGY271(int16_t i16X, int16_t i16Y);
-void vCalculateOffsetsGY271();
-void vPrintCalibrationDataGY271();
 
 #endif
 

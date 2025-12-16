@@ -47,10 +47,6 @@ void vReadCalibrationDataBME280() {
     i16Dig_T3 = (int16_t)(Wire.read() | (Wire.read() << 8));
 }
 
-void vSetCtrlRegisterGY271(uint8_t ui8OverSampling, uint8_t ui8Range, uint8_t ui8DataRate, uint8_t ui8Mode) {
-    vWriteRegister(ADDR, 9, ui8OverSampling | ui8Range | ui8DataRate | ui8Mode);
-}
-
 void softReset() {
     vWriteRegister(ADDR, 0x0a, 0x80);
     vWriteRegister(ADDR, 0x0b, 0x01);
@@ -160,32 +156,6 @@ bool bReadRawDataGY271(int16_t& i16RawX, int16_t& i16RawY, int16_t& i16RawZ) {
     i16RawY = (int16_t)((yh << 8) | yl);
     i16RawZ = (int16_t)((zh << 8) | zl);
     return true;
-}
-
-double dGetHeading() {
-    int16_t xr, yr, zr;
-    if (!bReadRawDataGY271(xr, yr, zr)) {
-        Serial.println("I2C read failed");
-        delay(200);
-    }
-
-    // --- Offset-Korrektur ---
-    double y_cal = (double)yr - y_offset;
-    double z_cal = (double)zr - z_offset;
-
-    // --- Soft-Iron Skalierung ---
-    const double y_scale = (y_max - y_min) / 2.0;
-    const double z_scale = (z_max - z_min) / 2.0;
-    const double avg_scale = (y_scale + z_scale) / 2.0;
-
-    double y_norm = y_cal * (avg_scale / y_scale);
-    double z_norm = z_cal * (avg_scale / z_scale);
-
-    // --- Heading (Y/Z angenommen horizontal) ---
-    double heading = atan2(y_norm, z_norm) * 180.0 / M_PI;
-    if (heading < 0) heading += 360.0;
-    RaspPI_transmitData.fFacingDirection = heading;
-    return heading;
 }
 
 void updateGetHeadingWithGPS()
@@ -529,7 +499,7 @@ void vMakeASetForward() {
 }
 
 void vSpinToHeading(float fTargetHeading) {
-    vUpdateHeadingControl(dGetHeading(), fTargetHeading, 100, 2);
+    //vUpdateHeadingControl(dGetHeading(), fTargetHeading, 100, 2);
 
     vRegulateMotorLeftRPM(fSollMotorLeftRPM);
     vRegulateMotorRightRPM(fSollMotorRightRPM);
@@ -537,45 +507,4 @@ void vSpinToHeading(float fTargetHeading) {
 
 void vAccelarate(int iItensity) {
 
-}
-
-void vUpdateCalibrationDataGY271(int16_t i16X, int16_t i16Y, int16_t i16Z) {
-    if (i16X < x_min) x_min = i16X;
-    if (i16X > x_max) x_max = i16X;
-    if (i16Y < y_min) y_min = i16Y;
-    if (i16Y > y_max) y_max = i16Y;
-	if (i16Z < z_min) z_min = i16Z;
-	if (i16Z > z_max) z_max = i16Z;
-}
-
-void vCalculateOffsetsGY271() {
-    x_offset = (x_max + x_min) / 2;
-    y_offset = (y_max + y_min) / 2;
-	z_offset = (z_max + z_min) / 2;
-    Serial.print("x_offset = "); Serial.println(x_offset);
-    Serial.print("y_offset = "); Serial.println(y_offset);
-    Serial.print("y_offset = "); Serial.println(z_offset);
-}
-
-void vPrintCalibrationDataGY271() {
-    int duration_ms = 20000;
-    Serial.println("Starte Kalibrierung. Bitte Modul 360° drehen...");
-    unsigned long start = millis();
-    int16_t xr, yr, zr;
-
-    while (millis() - start < duration_ms) {
-        if (bReadRawDataGY271(xr, yr, zr)) {
-            vUpdateCalibrationDataGY271(xr, yr, zr);
-        }
-        delay(50);
-    }
-
-    vCalculateOffsetsGY271();
-    Serial.println("Kalibrierung beendet!");
-    Serial.print("x_min = "); Serial.println(x_min);
-    Serial.print("x_max = "); Serial.println(x_max);
-    Serial.print("y_min = "); Serial.println(y_min);
-    Serial.print("y_max = "); Serial.println(y_max);
-	Serial.print("z_min = "); Serial.println(z_min);
-	Serial.print("z_max = "); Serial.println(z_max);
 }

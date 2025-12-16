@@ -429,12 +429,6 @@ void initGPSModule() {
     gpsSerial.begin(BaudRate_9600);
 }
 
-void initGY271() {
-    //softReset(); //Wird glaube ich nicht genutzt weil qmcResetAndInit sowieso resetet muss aber überprüft werden
-    //vSetCtrlRegisterGY271(OSR_128, RNG_2G, ODR_100Hz, Mode_Continuous); //Wird glaube ich nicht genutzt weil qmcResetAndInit sowieso resetet muss aber überprüft werden
-    vResetAndInitGY271();
-}
-
 void initHC12() {
     funkSerial.begin(BaudRate_9600, SERIAL_8N1, HC12TXPin, HC12RXPin);
     pinMode(HC12SetPin, OUTPUT);
@@ -485,11 +479,8 @@ void setup() {
     init();
     initBME280();
     initGPSModule();
-    initGY271();
     initHC12();
     initHCSR04();
-
-    //vPrintCalibrationDataGY271();
 
     xTaskCreatePinnedToCore(
         ReceiveDataFromRaspPI,        // Funktion

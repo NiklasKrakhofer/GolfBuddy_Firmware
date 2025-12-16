@@ -46,7 +46,7 @@ extern int32_t i32T_fine;
 
 // Transmit data struct
 struct TransmitDataToPi {
-    int     iBatteryLevel = 0; //Muss be set with value when measured. 
+    int     iBatteryLevel = 0; //Must be set with value when measured. 
     double  dLatitudeGolfBuddy = 0.0;
     double  dLongitudeGolfBuddy = 0.0;
     float   fFacingDirection = 0.0;
@@ -108,11 +108,6 @@ extern bool bDogeRight;
 extern bool bDodgeLeft;
 extern bool bIsPlayerTrackingActivated;
 extern bool bIsMotorSupportActivated;
-
-extern long x_min, x_max;
-extern long y_min, y_max;
-extern long z_min, z_max;
-extern long x_offset, y_offset, z_offset;
 
 extern int iTrackingRPM;
 

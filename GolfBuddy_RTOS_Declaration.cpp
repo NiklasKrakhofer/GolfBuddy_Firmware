@@ -88,11 +88,6 @@ bool bDodgeLeft = false;
 bool bIsPlayerTrackingActivated = false;
 bool bIsMotorSupportActivated = false;
 
-long x_min = -1092, x_max = 1507;
-long y_min = -331, y_max = 986;
-long z_min = -1011, z_max = 2023;
-long x_offset = 207, y_offset = 327, z_offset = 506;
-
 int iTrackingRPM = 50;
 
 const uint32_t brakeDuration = 3000;
