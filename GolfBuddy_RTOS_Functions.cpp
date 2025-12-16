@@ -62,20 +62,10 @@ void vSendTransmitdataToPi() {
         String(RaspPI_transmitData.dLatitudeGolfBuddy) + ";" +
         String(RaspPI_transmitData.dLongitudeGolfBuddy) + ";" +
         String(RaspPI_transmitData.fFacingDirection) + ";" +
+        String(bIsPlayerTrackingActivated) +
         "\n";
 
     piSerial.write(out.c_str());
-}
-
-void vPushGPSData(float latitude, float longitude) {
-    GPSCoordinates data = { latitude, longitude };
-
-    xSemaphoreTake(bufferMutex, portMAX_DELAY);
-
-    Buffer_Coordinates[iBuffer_Coordinates_WriteIndex] = data;
-    iBuffer_Coordinates_WriteIndex = (iBuffer_Coordinates_WriteIndex + 1) % BUFFER_Coordinates_SIZE;
-
-    xSemaphoreGive(bufferMutex);
 }
 
 int32_t i32ReadRawTemperatureBME280() {
@@ -179,55 +169,73 @@ double dGetHeading() {
         delay(200);
     }
 
-    long x_cal = (long)xr - x_offset;
-    long y_cal = (long)yr - y_offset;
+    // --- Offset-Korrektur ---
+    double y_cal = (double)yr - y_offset;
+    double z_cal = (double)zr - z_offset;
 
-    double heading = atan2((double)y_cal, (double)x_cal) * 180.0 / M_PI;
+    // --- Soft-Iron Skalierung ---
+    const double y_scale = (y_max - y_min) / 2.0;
+    const double z_scale = (z_max - z_min) / 2.0;
+    const double avg_scale = (y_scale + z_scale) / 2.0;
+
+    double y_norm = y_cal * (avg_scale / y_scale);
+    double z_norm = z_cal * (avg_scale / z_scale);
+
+    // --- Heading (Y/Z angenommen horizontal) ---
+    double heading = atan2(y_norm, z_norm) * 180.0 / M_PI;
     if (heading < 0) heading += 360.0;
     RaspPI_transmitData.fFacingDirection = heading;
     return heading;
 }
 
-bool bGetOldestGPSCoordinate(GPSCoordinates& dataOut) {
-    xSemaphoreTake(bufferMutex, portMAX_DELAY); // Mutex sperren
+void updateGetHeadingWithGPS()
+{
+    GPSCoordinates oldCoords;
+    double φ1 = oldCoords.dGolfTrolley_latitude * M_PI / 180.0;
+    double φ2 = trolleyCoords.dGolfTrolley_latitude * M_PI / 180.0;
+    double Δλ = (trolleyCoords.dGolfTrolley_longitude - oldCoords.dGolfTrolley_longitude) * M_PI / 180.0;
 
-    if (iBuffer_Coordinates_ReadIndex == iBuffer_Coordinates_WriteIndex) {
-        // Puffer leer
-        xSemaphoreGive(bufferMutex);
-        return false;
-    }
+    double y = sin(Δλ) * cos(φ2);
+    double x = cos(φ1) * sin(φ2) - sin(φ1) * cos(φ2) * cos(Δλ);
 
-    // Ältesten Wert auslesen
-    dataOut = Buffer_Coordinates[iBuffer_Coordinates_ReadIndex];
+    double θ = atan2(y, x);
+    double heading = θ * 180.0 / M_PI;
 
-    xSemaphoreGive(bufferMutex); // Mutex freigeben
-    return true;
+    if (heading < 0) heading += 360.0;
+    RaspPI_transmitData.fFacingDirection = heading;
+
+    oldCoords.dGolfTrolley_latitude = trolleyCoords.dGolfTrolley_latitude;
+    oldCoords.dGolfTrolley_longitude = trolleyCoords.dGolfTrolley_longitude;
 }
 
 void vPlayerTracking(const GPSCoordinates& targetCoords, const GPSCoordinates& currentCoords) {
 	// Determine tracking speed based on buffer status
-    if (iBuffer_Coordinates_WriteIndex > iBuffer_Coordinates_ReadIndex) {
-        iTrackingRPM = 300; // faster
-    }
-    else if (iBuffer_Coordinates_WriteIndex < iBuffer_Coordinates_ReadIndex) {
-		iTrackingRPM = 100; // slower
-    }
-	else if (iBuffer_Coordinates_WriteIndex == iBuffer_Coordinates_ReadIndex) { // TODO: check if this case is possible
-        iTrackingRPM = 0; // stehen bleiben -> ziel erreicht
-    }
-
+ //   if () {
+ //       iTrackingRPM = 200; // faster
+ //   }
+ //   else if () {
+	//	iTrackingRPM = 100; // slower
+ //   }
+	//else if () { // TODO: check if this case is possible
+ //       iTrackingRPM = 0; // stehen bleiben -> ziel erreicht
+ //   }
+    
 	// Update heading control to face target coordinate
-    vUpdateHeadingControl(dGetHeading(), dGetTargetHeading(currentCoords, targetCoords), iTrackingRPM, 1);
-
+    vUpdateHeadingControl(RaspPI_transmitData.fFacingDirection, dGetTargetHeading(currentCoords, targetCoords), iTrackingRPM, 1);
+    Serial.println(RaspPI_transmitData.fFacingDirection);
+    Serial.println(currentCoords.dGolfTrolley_latitude);
+    Serial.println(currentCoords.dGolfTrolley_longitude);
+    Serial.println(fSollMotorLeftRPM);
+    Serial.println(fSollMotorRightRPM);
 	// Regulate motors to desired RPM
     vRegulateMotorLeftRPM(fSollMotorLeftRPM);
     vRegulateMotorRightRPM(fSollMotorRightRPM);
    
 	// If within 2 meters, mark coordinate as reached and remove it from buffer
     if (dCalculateHaversine(currentCoords.dGolfTrolley_latitude, currentCoords.dGolfTrolley_longitude, targetCoords.dGolfTrolley_latitude, targetCoords.dGolfTrolley_longitude) < 2) {
-        xSemaphoreTake(bufferMutex, portMAX_DELAY);
-        iBuffer_Coordinates_ReadIndex = (iBuffer_Coordinates_ReadIndex + 1) % BUFFER_Coordinates_SIZE;
-        xSemaphoreGive(bufferMutex);
+        if (!targetCoordsBuffer.empty()) {
+            targetCoordsBuffer.erase(targetCoordsBuffer.begin());
+        }
     }
 }
 
@@ -275,27 +283,6 @@ void vUpdateHeadingControl(float fHeading, float fHeadingTarget, int iBaseSpeed,
     // Motorgeschwindigkeiten berechnen
     fSollMotorRightRPM = iBaseSpeed - turn;
     fSollMotorLeftRPM = iBaseSpeed + turn;
-}
-
-bool bGetNewestGPSCoordinates(GPSCoordinates& dataOut) {
-    xSemaphoreTake(bufferMutex, portMAX_DELAY); // Mutex sperren
-
-    if (iBuffer_Coordinates_ReadIndex == iBuffer_Coordinates_WriteIndex) {
-        // Puffer leer
-        xSemaphoreGive(bufferMutex);
-        return false;
-    }
-
-    // Index des neuesten Werts berechnen
-    int newestIndex = iBuffer_Coordinates_WriteIndex - 1;
-    if (newestIndex < 0) {
-        newestIndex = BUFFER_Coordinates_SIZE - 1; // Wrap-around
-    }
-
-    dataOut = Buffer_Coordinates[newestIndex]; // Wert kopieren
-
-    xSemaphoreGive(bufferMutex); // Mutex freigeben
-    return true;
 }
 
 double dCalculateHaversine(double dLat1, double dLon1, double dLat2, double dLon2) {
@@ -552,18 +539,22 @@ void vAccelarate(int iItensity) {
 
 }
 
-void vUpdateCalibrationDataGY271(int16_t i16X, int16_t i16Y) {
+void vUpdateCalibrationDataGY271(int16_t i16X, int16_t i16Y, int16_t i16Z) {
     if (i16X < x_min) x_min = i16X;
     if (i16X > x_max) x_max = i16X;
     if (i16Y < y_min) y_min = i16Y;
     if (i16Y > y_max) y_max = i16Y;
+	if (i16Z < z_min) z_min = i16Z;
+	if (i16Z > z_max) z_max = i16Z;
 }
 
 void vCalculateOffsetsGY271() {
     x_offset = (x_max + x_min) / 2;
     y_offset = (y_max + y_min) / 2;
+	z_offset = (z_max + z_min) / 2;
     Serial.print("x_offset = "); Serial.println(x_offset);
     Serial.print("y_offset = "); Serial.println(y_offset);
+    Serial.print("y_offset = "); Serial.println(z_offset);
 }
 
 void vPrintCalibrationDataGY271() {
@@ -574,7 +565,7 @@ void vPrintCalibrationDataGY271() {
 
     while (millis() - start < duration_ms) {
         if (bReadRawDataGY271(xr, yr, zr)) {
-            vUpdateCalibrationDataGY271(xr, yr);
+            vUpdateCalibrationDataGY271(xr, yr, zr);
         }
         delay(50);
     }
@@ -585,4 +576,6 @@ void vPrintCalibrationDataGY271() {
     Serial.print("x_max = "); Serial.println(x_max);
     Serial.print("y_min = "); Serial.println(y_min);
     Serial.print("y_max = "); Serial.println(y_max);
+	Serial.print("z_min = "); Serial.println(z_min);
+	Serial.print("z_max = "); Serial.println(z_max);
 }

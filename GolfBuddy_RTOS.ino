@@ -16,7 +16,7 @@
 #include <HardwareSerial.h>
 #include <cstdint>
 #include <cstring>
-#include <Wire.h>
+#include <Wire.h> 
 #include <math.h>
 #include <freertos/semphr.h>
 
@@ -107,7 +107,7 @@ void ReadGPSData(void* pvParameters) {
             lastUpdate = millis();
             trolleyCoords.dGolfTrolley_latitude = gps.location.lat();
             trolleyCoords.dGolfTrolley_longitude = gps.location.lng();   
-
+  
             RaspPI_transmitData.dLatitudeGolfBuddy = trolleyCoords.dGolfTrolley_latitude;
             RaspPI_transmitData.dLongitudeGolfBuddy = trolleyCoords.dGolfTrolley_longitude;
         }
@@ -182,7 +182,7 @@ void MotorSupport(void* pvParameter) {
 //@return: -
 void CheckSurrounding(void* pvParameter) {
     while (1) {
-        vCheckSurrounding();    
+        //vCheckSurrounding(); 
         vTaskDelay(100  / portTICK_PERIOD_MS);
     }
 }
@@ -387,8 +387,8 @@ void init() {
     analogWriteFrequency(MotorLeftPWMPin, 20000);
     analogWriteFrequency(MotorRightPWMPin, 20000);
 
-    analogWriteFrequency(MotorLeftBreakPin, 20000);
-    analogWriteFrequency(MotorRightBreakPin, 20000);
+    //analogWriteFrequency(MotorLeftBreakPin, 20000);
+    //analogWriteFrequency(MotorRightBreakPin, 20000);
 
     pinMode(MotorLeftSpeedPin, INPUT_PULLUP);
     pinMode(MotorRightSpeedPin, INPUT_PULLUP);

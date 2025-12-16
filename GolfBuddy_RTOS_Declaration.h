@@ -54,10 +54,7 @@ struct TransmitDataToPi {
 extern TransmitDataToPi RaspPI_transmitData;
 
 // GPS buffer
-extern GPSCoordinates Buffer_Coordinates[BUFFER_Coordinates_SIZE];
-extern int iBuffer_Coordinates_WriteIndex;
-extern int iBuffer_Coordinates_ReadIndex;
-extern SemaphoreHandle_t bufferMutex;
+extern std::vector<GPSCoordinates> targetCoordsBuffer;
 
 // Motor / speed
 extern float fMotorLeftRPM;
@@ -105,7 +102,6 @@ extern String sIncomeTrackerDataFields[10];
 extern int iIncomeTrackerFieldIndex;
 
 // Golf trolley control
-extern bool bTrolleyStartStop;
 extern bool bvDriveAroundonRightwithCheck;
 extern bool bvDriveAroundonLeftwithCheck;
 extern bool bDogeRight;
@@ -115,7 +111,8 @@ extern bool bIsMotorSupportActivated;
 
 extern long x_min, x_max;
 extern long y_min, y_max;
-extern long x_offset, y_offset;
+extern long z_min, z_max;
+extern long x_offset, y_offset, z_offset;
 
 extern int iTrackingRPM;
 
