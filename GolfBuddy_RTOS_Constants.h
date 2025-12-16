@@ -39,8 +39,8 @@
 #define SDA 11
 #define SCL 12
 
-#define GPSRXPin 10
-#define GPSTXPin 9
+#define GPSRXPin 9
+#define GPSTXPin 10
 
 #define TouchSensorLeft 8
 #define TouchSensorRight 3

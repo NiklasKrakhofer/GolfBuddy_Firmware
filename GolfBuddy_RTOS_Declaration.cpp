@@ -35,10 +35,7 @@ int32_t i32T_fine;
 TransmitDataToPi RaspPI_transmitData;
 
 // GPS buffer
-GPSCoordinates Buffer_Coordinates[BUFFER_Coordinates_SIZE];
-int iBuffer_Coordinates_WriteIndex = 0;
-int iBuffer_Coordinates_ReadIndex = 0;
-SemaphoreHandle_t bufferMutex;
+std::vector<GPSCoordinates> targetCoordsBuffer;
 
 // Motor / speed
 float fMotorLeftRPM = 0;
@@ -84,7 +81,6 @@ String sIncomeTrackerDataFields[10];
 int iIncomeTrackerFieldIndex = 0;
 
 // Golf trolley control
-bool bTrolleyStartStop = false;
 bool bvDriveAroundonRightwithCheck = false;
 bool bvDriveAroundonLeftwithCheck = false;
 bool bDogeRight = false;
@@ -92,13 +88,14 @@ bool bDodgeLeft = false;
 bool bIsPlayerTrackingActivated = false;
 bool bIsMotorSupportActivated = false;
 
-long x_min = 208, x_max = 1507;
-long y_min = 101, y_max = 986;
-long x_offset = 857, y_offset = 534;
+long x_min = -1092, x_max = 1507;
+long y_min = -331, y_max = 986;
+long z_min = -1011, z_max = 2023;
+long x_offset = 207, y_offset = 327, z_offset = 506;
 
 int iTrackingRPM;
 
 const uint32_t brakeDuration = 3000;
-bool bIsBreakingActive;
+bool bIsBreakingActive = false;
 int iBreakIntensityMotorLeft;
 int iBreakIntensityMotorRight;

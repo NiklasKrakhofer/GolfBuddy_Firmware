@@ -103,7 +103,7 @@ void TransmittDataToRaspPI(void* pvParameters) {
 void ReadGPSData(void* pvParameters) {
     unsigned long lastUpdate = millis();
     while (1) {
-        if (gps.location.isUpdated() && (millis() - lastUpdate > 1500)) {
+        if (gps.location.isUpdated() && (millis() - lastUpdate > 100)) {
             lastUpdate = millis();
             trolleyCoords.dGolfTrolley_latitude = gps.location.lat();
             trolleyCoords.dGolfTrolley_longitude = gps.location.lng();   
@@ -124,7 +124,7 @@ void ReadTemperature(void* pvParameter) {
     while (1) {
         int32_t i32RawTemp = i32ReadRawTemperatureBME280();
         float fTemperature = fCompensateTemperatureBME280(i32RawTemp);
-
+        updateGetHeadingWithGPS();
         vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
 }
@@ -152,12 +152,12 @@ void PlayerTracking(void* pvParameter) {
     GPSCoordinates targetCoords;
     while (1) {
         if (bIsPlayerTrackingActivated && !bDogingactive && !bIsBreakingActive) {
-            if (iBuffer_Coordinates_ReadIndex == iBuffer_Coordinates_WriteIndex)
+            if (!targetCoordsBuffer.empty())
             {
                 vParking();
             }
-            else if (bGetOldestGPSCoordinate(targetCoords) && iBuffer_Coordinates_ReadIndex != iBuffer_Coordinates_WriteIndex) {
-                vPlayerTracking(targetCoords, trolleyCoords);
+            else {
+                vPlayerTracking(targetCoordsBuffer[0], trolleyCoords);
             }
         }
         vTaskDelay(1 / portTICK_PERIOD_MS);
@@ -193,7 +193,6 @@ void ReceiveDataFromTracker(void* pvParameter) {
     while (1) {
         while (funkSerial.available()) {
             char c = funkSerial.read();
-
             if (c == ';') {
                 sIncomeTrackerDataFields[iIncomeTrackerFieldIndex] = sCurrentIncomeTrackerDataField;
                 iIncomeTrackerFieldIndex++;
@@ -202,12 +201,18 @@ void ReceiveDataFromTracker(void* pvParameter) {
             else if (c == '\n') {
                 sIncomeTrackerDataFields[iIncomeTrackerFieldIndex] = sCurrentIncomeTrackerDataField;
 
-                double dlatitude = sIncomeTrackerDataFields[0].toDouble();
+                double latitude = sIncomeTrackerDataFields[0].toDouble();
                 double longitude = sIncomeTrackerDataFields[1].toDouble();
-                bTrolleyStartStop = (sIncomeTrackerDataFields[3] == "true");
-                
-                if (bTrolleyStartStop) {
-                    vPushGPSData(dlatitude, longitude);
+                if (sIncomeTrackerDataFields[2] == "1")
+                {
+                    bIsPlayerTrackingActivated = true;
+                }
+                else 
+                {
+                    bIsPlayerTrackingActivated = false;
+                }
+                if (latitude != 0 && longitude != 0 && bIsPlayerTrackingActivated) {
+                    targetCoordsBuffer.push_back({ latitude, longitude });
                 }
 
                 sCurrentIncomeTrackerDataField = "";
@@ -343,8 +348,8 @@ void BreakMotors(void* parameter) {
                 brakeInProgress = true;
             }
             //Testen ob das passt mit digital, wenn nicht pwm
-            digitalWrite(MotorLeftBreakPin, HIGH);
-            digitalWrite(MotorRightBreakPin, HIGH);
+            digitalWrite(MotorLeftBreakPin, LOW);
+            digitalWrite(MotorRightBreakPin, LOW);
             //vBreakMotorLeft(iBreakIntensityMotorLeft);
             //vBreakMotorRight(iBreakIntensityMotorRight);
 
@@ -354,8 +359,8 @@ void BreakMotors(void* parameter) {
             }
         }
         else {
-            digitalWrite(MotorLeftBreakPin, LOW);
-            digitalWrite(MotorRightBreakPin, LOW);
+            digitalWrite(MotorLeftBreakPin, HIGH);
+            digitalWrite(MotorRightBreakPin, HIGH);
         }
         vTaskDelay(1 / portTICK_PERIOD_MS);
     }
@@ -396,6 +401,8 @@ void init() {
 
     pinMode(TouchSensorLeft, INPUT);
     pinMode(TouchSensorRight, INPUT);
+
+    vSetDrivingdirectionMotorLeft(DrivingDirectionForwards);
 }
 
 void initBME280() {
@@ -478,8 +485,6 @@ void setup() {
     initHCSR04();
 
     //vPrintCalibrationDataGY271();
-
-    bufferMutex = xSemaphoreCreateMutex();
 
     xTaskCreatePinnedToCore(
         ReceiveDataFromRaspPI,        // Funktion
