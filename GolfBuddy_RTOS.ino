@@ -395,8 +395,8 @@ void MeasureHeading(void* parameter) {
 
 void MeasureAkkuVoltage(void* parameter) {
 	while (1) {
-		
-		vTaskDelay(10000 / portTICK_PERIOD_MS);
+		RaspPI_transmitData.iBatteryLevel = map(2890, 2703, 3660, 33, 42);
+		vTaskDelay(1000 / portTICK_PERIOD_MS);
 	}
 }
 
@@ -435,6 +435,8 @@ void init() {
 
 	pinMode(TouchSensorLeft, INPUT);
 	pinMode(TouchSensorRight, INPUT);
+
+	pinMode(AkkuVoltageMeasurePin, INPUT); //Akkuvoltage measurepin
 
 	vSetDrivingdirectionMotorLeft(DrivingDirectionForwards);
 }
