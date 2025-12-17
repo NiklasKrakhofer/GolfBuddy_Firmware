@@ -13,6 +13,7 @@
 #include "GolfBuddy_RTOS_Constants.h"
 #include <Arduino.h>
 #include <TinyGPSPlus.h>
+#include "MPU9250.h"
 #include <HardwareSerial.h>
 #include <cstdint>
 #include <cstring>
@@ -23,7 +24,6 @@
 //////////////////////////////////////////////////////////////////////////////
 // Tasks
 //////////////////////////////////////////////////////////////////////////////
-
 TaskHandle_t xHandleReceiveDataFromRaspberryPI;
 TaskHandle_t xHandleTransmittDataToRaspberryPI;
 TaskHandle_t xHandleReadGPSData;
@@ -34,6 +34,8 @@ TaskHandle_t xHandleMotorSupport;
 TaskHandle_t xHandleCheckSurrounding;
 TaskHandle_t xHandleReceiveDataFromTracker;
 TaskHandle_t xHandleBrakeTaskHandle;
+TaskHandle_t xHandleMeasureHeading;
+TaskHandle_t xHandleMeasureAkkuVoltage;
 
 #ifdef ObsticaleDetectionWithDogeing
 TaskHandle_t xHandleDriveArroundwithCheck;
@@ -46,44 +48,44 @@ TaskHandle_t xHandleDodge;
 //      Decodes Received Massage and sets Variables.
 //Param: -
 void ReceiveDataFromRaspPI(void* pvParameters) {
-    while (1) {   
-        if (piSerial.available() > 0) {
-            String sReceivedData = piSerial.readStringUntil('\n');
-            
-            String sDataSegments[10];
-            int iDataSegmentIndex = 0;
-            String sCurrentDataSegment = "";
+	while (1) {
+		if (piSerial.available() > 0) {
+			String sReceivedData = piSerial.readStringUntil('\n');
 
-            for (int i = 0; i < sReceivedData.length(); i++) {
-                char c = sReceivedData[i];
-                if (c == ';') {
-                    sDataSegments[iDataSegmentIndex++] = sCurrentDataSegment;
-                    sCurrentDataSegment = "";
-                }
-                else {
-                    sCurrentDataSegment += c;
-                }
-            }
+			String sDataSegments[10];
+			int iDataSegmentIndex = 0;
+			String sCurrentDataSegment = "";
 
-            if (sCurrentDataSegment.length() > 0) {
-                sDataSegments[iDataSegmentIndex++] = sCurrentDataSegment;
-            }
-            
-            if (sDataSegments[0].toInt() == 0) {
-                bIsPlayerTrackingActivated = false;
-                bIsMotorSupportActivated = false;
-            }
-            else if (sDataSegments[0].toInt() == 1) {
-                bIsPlayerTrackingActivated = true;
-                bIsMotorSupportActivated = false;
-            }
-            else if (sDataSegments[0].toInt() == 2) {
-                bIsPlayerTrackingActivated = false;
-                bIsMotorSupportActivated = true;
-            }
-        }
-        vTaskDelay(1 / portTICK_PERIOD_MS);
-    }
+			for (int i = 0; i < sReceivedData.length(); i++) {
+				char c = sReceivedData[i];
+				if (c == ';') {
+					sDataSegments[iDataSegmentIndex++] = sCurrentDataSegment;
+					sCurrentDataSegment = "";
+				}
+				else {
+					sCurrentDataSegment += c;
+				}
+			}
+
+			if (sCurrentDataSegment.length() > 0) {
+				sDataSegments[iDataSegmentIndex++] = sCurrentDataSegment;
+			}
+
+			if (sDataSegments[0].toInt() == 0) {
+				bIsPlayerTrackingActivated = false;
+				bIsMotorSupportActivated = false;
+			}
+			else if (sDataSegments[0].toInt() == 1) {
+				bIsPlayerTrackingActivated = true;
+				bIsMotorSupportActivated = false;
+			}
+			else if (sDataSegments[0].toInt() == 2) {
+				bIsPlayerTrackingActivated = false;
+				bIsMotorSupportActivated = true;
+			}
+		}
+		vTaskDelay(1 / portTICK_PERIOD_MS);
+	}
 }
 
 //Task: Sends Serial Data to Raspberry Pi every 1s including: iBatteryLevel
@@ -92,41 +94,40 @@ void ReceiveDataFromRaspPI(void* pvParameters) {
 //                                                            fFacingDirection
 //Param: -
 void TransmittDataToRaspPI(void* pvParameters) {
-    while (1) {
-        vSendTransmitdataToPi();
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
-    }
+	while (1) {
+		vSendTransmitdataToPi();
+		vTaskDelay(1000 / portTICK_PERIOD_MS);
+	}
 }
 
 //Task: Reads GPS Coordinates from GPS Modul every 1.5s
 //Param: -
 void ReadGPSData(void* pvParameters) {
-    unsigned long lastUpdate = millis();
-    while (1) {
-        if (gps.location.isUpdated() && (millis() - lastUpdate > 100)) {
-            lastUpdate = millis();
-            trolleyCoords.dGolfTrolley_latitude = gps.location.lat();
-            trolleyCoords.dGolfTrolley_longitude = gps.location.lng();   
-  
-            RaspPI_transmitData.dLatitudeGolfBuddy = trolleyCoords.dGolfTrolley_latitude;
-            RaspPI_transmitData.dLongitudeGolfBuddy = trolleyCoords.dGolfTrolley_longitude;
-        }
-        while (gpsSerial.available() > 0) {
-            gps.encode(gpsSerial.read());
-        }
-        vTaskDelay(1 / portTICK_PERIOD_MS);
-    }
+	unsigned long lastUpdate = millis();
+	while (1) {
+		if (gps.location.isUpdated() && (millis() - lastUpdate > 100)) {
+			lastUpdate = millis();
+			trolleyCoords.dGolfTrolley_latitude = gps.location.lat();
+			trolleyCoords.dGolfTrolley_longitude = gps.location.lng();
+
+			RaspPI_transmitData.dLatitudeGolfBuddy = trolleyCoords.dGolfTrolley_latitude;
+			RaspPI_transmitData.dLongitudeGolfBuddy = trolleyCoords.dGolfTrolley_longitude;
+		}
+		while (gpsSerial.available() > 0) {
+			gps.encode(gpsSerial.read());
+		}
+		vTaskDelay(1 / portTICK_PERIOD_MS);
+	}
 }
 
 //Task: Reads Temperature from BME280 every 1s
 //Param: -
 void ReadTemperature(void* pvParameter) {
-    while (1) {
-        int32_t i32RawTemp = i32ReadRawTemperatureBME280();
-        float fTemperature = fCompensateTemperatureBME280(i32RawTemp);
-        updateGetHeadingWithGPS();
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
-    }
+	while (1) {
+		int32_t i32RawTemp = i32ReadRawTemperatureBME280();
+		float fTemperature = fCompensateTemperatureBME280(i32RawTemp);
+		vTaskDelay(1000 / portTICK_PERIOD_MS);
+	}
 }
 
 //Task: Measures MotorSpeed of both Motors and sets the following Variables with the Calculated Values:
@@ -139,45 +140,53 @@ void ReadTemperature(void* pvParameter) {
 // 
 //Param: -
 void MeassureMotorSpeed(void* pvParameter) {
-    while (1) {
-        vUpdateMeausuredMotorSpeed();
-        vTaskDelay(100 / portTICK_PERIOD_MS);
-    }
+	while (1) {
+		vUpdateMeausuredMotorSpeed();
+		vTaskDelay(100 / portTICK_PERIOD_MS);
+	}
 }
 
 //Task: If targetCoordinates are in Queue and Tracking is enabled, then the Trolley drives to the target Coordinate.
 //      Else the Trolley stays in Parking and is not moving.
 //Param: -
 void PlayerTracking(void* pvParameter) {
-    GPSCoordinates targetCoords;
+	GPSCoordinates targetCoords;
 	// Make a set forward to get the trolley heading
-    vMakeASetForward();
-    delay(2000);
-    vRegulateMotorLeftRPM(0);
-    vRegulateMotorRightRPM(0);
-    while (1) {
-        if (bIsPlayerTrackingActivated && !bDogingactive && !bIsBreakingActive) {
-            if (!targetCoordsBuffer.empty())
-            {
-                vParking();
-            }
-            else {
-                vPlayerTracking(targetCoordsBuffer[0], trolleyCoords);
-            }
-        }
-        vTaskDelay(100 / portTICK_PERIOD_MS);
-    }
+	// Warten, bis gültige GPS-Daten vorhanden sind
+	while (trolleyCoords.dGolfTrolley_latitude == 0.0 ||
+		trolleyCoords.dGolfTrolley_longitude == 0.0) {
+		vTaskDelay(500 / portTICK_PERIOD_MS);
+	}
+
+	vMakeASetForward();
+	delay(2000);
+	vRegulateMotorLeftRPM(0);
+	vRegulateMotorRightRPM(0);
+	while (1) {
+		if (bIsPlayerTrackingActivated && !bDogingactive && !bIsBreakingActive) {
+			if (targetCoordsBuffer.empty())
+			{
+				Serial.println("Parking");
+				vParking();
+			}
+			else {
+				vPlayerTracking(targetCoordsBuffer[0], trolleyCoords);
+			}
+		}
+		vTaskDelay(10 / portTICK_PERIOD_MS);
+	}
+
 }
 
 //Task: If bIsMotorSupportActivated is activated and Touchsensor/s is/are triggerd both Motors are regulated to BaseSpeed. 
 //Param: -
 void MotorSupport(void* pvParameter) {
-    while (1) {
-        if (bIsMotorSupportActivated && !bDogingactive) {
-            vMotorSupport();
-        }
-        vTaskDelay(1 / portTICK_PERIOD_MS);
-    }
+	while (1) {
+		if (bIsMotorSupportActivated && !bDogingactive) {
+			vMotorSupport();
+		}
+		vTaskDelay(1 / portTICK_PERIOD_MS);
+	}
 }
 
 //@brief: ifdef ObsticaleDetectionWithDogeing:  If an Objects is to close to the Trolley a Doging algorythm is triggered. 
@@ -186,189 +195,209 @@ void MotorSupport(void* pvParameter) {
 //@param: -
 //@return: -
 void CheckSurrounding(void* pvParameter) {
-    while (1) {
-        //vCheckSurrounding(); 
-        vTaskDelay(100  / portTICK_PERIOD_MS);
-    }
+	while (1) {
+		//vCheckSurrounding(); 
+		vTaskDelay(100 / portTICK_PERIOD_MS);
+	}
 }
 
 //Task: !
 //Param: -
 void ReceiveDataFromTracker(void* pvParameter) {
-    while (1) {
-        while (funkSerial.available()) {
-            char c = funkSerial.read();
-            if (c == ';') {
-                sIncomeTrackerDataFields[iIncomeTrackerFieldIndex] = sCurrentIncomeTrackerDataField;
-                iIncomeTrackerFieldIndex++;
-                sCurrentIncomeTrackerDataField = "";
-            }
-            else if (c == '\n') {
-                sIncomeTrackerDataFields[iIncomeTrackerFieldIndex] = sCurrentIncomeTrackerDataField;
+	while (1) {
+		while (funkSerial.available()) {
+			char c = funkSerial.read();
+			if (c == ';') {
+				sIncomeTrackerDataFields[iIncomeTrackerFieldIndex] = sCurrentIncomeTrackerDataField;
+				iIncomeTrackerFieldIndex++;
+				sCurrentIncomeTrackerDataField = "";
+			}
+			else if (c == '\n') {
+				sIncomeTrackerDataFields[iIncomeTrackerFieldIndex] = sCurrentIncomeTrackerDataField;
 
-                double latitude = sIncomeTrackerDataFields[0].toDouble();
-                double longitude = sIncomeTrackerDataFields[1].toDouble();
-                if (sIncomeTrackerDataFields[2] == "1")
-                {
-                    bIsPlayerTrackingActivated = true;
-                }
-                else 
-                {
-                    bIsPlayerTrackingActivated = false;
-                }
-                if (latitude != 0 && longitude != 0 && bIsPlayerTrackingActivated) {
-                    targetCoordsBuffer.push_back({ latitude, longitude });
-                }
+				double latitude = sIncomeTrackerDataFields[0].toDouble();
+				double longitude = sIncomeTrackerDataFields[1].toDouble();
+				if (sIncomeTrackerDataFields[2] == "1")
+				{
+					bIsPlayerTrackingActivated = true;
+				}
+				else
+				{
+					bIsPlayerTrackingActivated = false;
+				}
+				if (latitude != 0 && longitude != 0 && bIsPlayerTrackingActivated) {
+					targetCoordsBuffer.push_back({ latitude, longitude });
+				}
 
-                sCurrentIncomeTrackerDataField = "";
-                iIncomeTrackerFieldIndex = 0;
-            }
-            else {
-                sCurrentIncomeTrackerDataField += c;
-            }
-        }
-        vTaskDelay(1 / portTICK_PERIOD_MS);
-    }
+				sCurrentIncomeTrackerDataField = "";
+				iIncomeTrackerFieldIndex = 0;
+			}
+			else {
+				sCurrentIncomeTrackerDataField += c;
+			}
+		}
+		vTaskDelay(1 / portTICK_PERIOD_MS);
+	}
 }
 
 #ifdef ObsticaleDetectionWithDogeing
 //Task: !
 //Param: -
 void vDriveAroundwithCheck(void* pvParameter) {
-    float fTargetHeading;
-    while (bvDriveAroundonRightwithCheck) {
-        Serial.println("RightStarted");
-        vMakeASetBack();
+	float fTargetHeading;
+	while (bvDriveAroundonRightwithCheck) {
+		Serial.println("RightStarted");
+		vMakeASetBack();
 
-        vTaskDelay(5000 / portTICK_PERIOD_MS);
+		vTaskDelay(5000 / portTICK_PERIOD_MS);
 
-        vRegulateMotorLeftRPM(0);
-        vRegulateMotorRightRPM(0);
+		vRegulateMotorLeftRPM(0);
+		vRegulateMotorRightRPM(0);
 
-        fTargetHeading = dGetHeading() - 90;
-        while (dGetHeading() - fTargetHeading <= 5) {
-            vSpinToHeading(fTargetHeading);
-        }
+		fTargetHeading = dGetHeading() - 90;
+		while (dGetHeading() - fTargetHeading <= 5) {
+			vSpinToHeading(fTargetHeading);
+		}
 
-        vMakeASetForward();
+		vMakeASetForward();
 
-        vTaskDelay(5000 / portTICK_PERIOD_MS);
+		vTaskDelay(5000 / portTICK_PERIOD_MS);
 
-        vRegulateMotorLeftRPM(0);
-        vRegulateMotorRightRPM(0);
+		vRegulateMotorLeftRPM(0);
+		vRegulateMotorRightRPM(0);
 
-        fTargetHeading = dGetHeading() + 90;
-        while (dGetHeading() - fTargetHeading <= 5) {
-            vSpinToHeading(fTargetHeading);
-        }
+		fTargetHeading = dGetHeading() + 90;
+		while (dGetHeading() - fTargetHeading <= 5) {
+			vSpinToHeading(fTargetHeading);
+		}
 
-        if (!vCheckSurrounding()) {
-            bDogingactive = false;
-            bvDriveAroundonRightwithCheck = false;
-        }
-        vTaskDelay(1 / portTICK_PERIOD_MS);
-    }
-    while (bvDriveAroundonLeftwithCheck) {
-        Serial.println("LeftStarted");
-        vMakeASetBack();
+		if (!vCheckSurrounding()) {
+			bDogingactive = false;
+			bvDriveAroundonRightwithCheck = false;
+		}
+		vTaskDelay(1 / portTICK_PERIOD_MS);
+	}
+	while (bvDriveAroundonLeftwithCheck) {
+		Serial.println("LeftStarted");
+		vMakeASetBack();
 
-        vTaskDelay(5000 / portTICK_PERIOD_MS);
+		vTaskDelay(5000 / portTICK_PERIOD_MS);
 
-        vRegulateMotorLeftRPM(0);
-        vRegulateMotorRightRPM(0);
+		vRegulateMotorLeftRPM(0);
+		vRegulateMotorRightRPM(0);
 
-        fTargetHeading = dGetHeading() + 90;
-        while (dGetHeading() - fTargetHeading <= 5) {
-            vSpinToHeading(fTargetHeading);
-        }
+		fTargetHeading = dGetHeading() + 90;
+		while (dGetHeading() - fTargetHeading <= 5) {
+			vSpinToHeading(fTargetHeading);
+		}
 
-        vMakeASetForward();
+		vMakeASetForward();
 
-        vTaskDelay(5000 / portTICK_PERIOD_MS);
+		vTaskDelay(5000 / portTICK_PERIOD_MS);
 
-        vRegulateMotorLeftRPM(0);
-        vRegulateMotorRightRPM(0);
+		vRegulateMotorLeftRPM(0);
+		vRegulateMotorRightRPM(0);
 
-        fTargetHeading = dGetHeading() - 90;
-        while (dGetHeading() - fTargetHeading <= 5) {
-            vSpinToHeading(fTargetHeading);
-        }
+		fTargetHeading = dGetHeading() - 90;
+		while (dGetHeading() - fTargetHeading <= 5) {
+			vSpinToHeading(fTargetHeading);
+		}
 
-        if (!vCheckSurrounding()) {
-            bDogingactive = false;
-            bvDriveAroundonRightwithCheck = false;
-        }
-        vTaskDelay(1 / portTICK_PERIOD_MS);
-    }
-    vTaskDelete(NULL);
+		if (!vCheckSurrounding()) {
+			bDogingactive = false;
+			bvDriveAroundonRightwithCheck = false;
+		}
+		vTaskDelay(1 / portTICK_PERIOD_MS);
+	}
+	vTaskDelete(NULL);
 }
 
 //Task: !
 //Param: -
 void vDodgeObsticle(void* pvParameter) {
-    while (bDogeRight) {
-        vRegulateMotorLeftRPM(100);
-        vRegulateMotorRightRPM(50);
+	while (bDogeRight) {
+		vRegulateMotorLeftRPM(100);
+		vRegulateMotorRightRPM(50);
 
-        vTaskDelay(5000 / portTICK_PERIOD_MS);
+		vTaskDelay(5000 / portTICK_PERIOD_MS);
 
-        vRegulateMotorLeftRPM(100);
-        vRegulateMotorRightRPM(100);
+		vRegulateMotorLeftRPM(100);
+		vRegulateMotorRightRPM(100);
 
-        vTaskDelay(5000 / portTICK_PERIOD_MS);
+		vTaskDelay(5000 / portTICK_PERIOD_MS);
 
-        bDogeRight = false;
+		bDogeRight = false;
 
-        vTaskDelay(1 / portTICK_PERIOD_MS);
-    }
-    while (bDodgeLeft) {
-        vRegulateMotorLeftRPM(50);
-        vRegulateMotorRightRPM(100);
+		vTaskDelay(1 / portTICK_PERIOD_MS);
+	}
+	while (bDodgeLeft) {
+		vRegulateMotorLeftRPM(50);
+		vRegulateMotorRightRPM(100);
 
-        vTaskDelay(5000 / portTICK_PERIOD_MS);
+		vTaskDelay(5000 / portTICK_PERIOD_MS);
 
-        vRegulateMotorLeftRPM(100);
-        vRegulateMotorRightRPM(100);
+		vRegulateMotorLeftRPM(100);
+		vRegulateMotorRightRPM(100);
 
-        vTaskDelay(5000 / portTICK_PERIOD_MS);
+		vTaskDelay(5000 / portTICK_PERIOD_MS);
 
-        bDodgeLeft = false;
+		bDodgeLeft = false;
 
-        vTaskDelay(1 / portTICK_PERIOD_MS);
-    }
-    vTaskDelete(NULL);
+		vTaskDelay(1 / portTICK_PERIOD_MS);
+	}
+	vTaskDelete(NULL);
 }
 #endif
 
 //Task: Breaks both Motors with a setable Intensity and Duration
 //Param: -
 void BreakMotors(void* parameter) {
-    static bool brakeInProgress = false;
-    unsigned long startTime = millis();
+	static bool brakeInProgress = false;
+	unsigned long startTime = millis();
 
-    while (1) {
-        if (bIsBreakingActive) {
-            if (!brakeInProgress) {
-                startTime = millis();
-                brakeInProgress = true;
-            }
-            //Testen ob das passt mit digital, wenn nicht pwm
-            digitalWrite(MotorLeftBreakPin, LOW);
-            digitalWrite(MotorRightBreakPin, LOW);
-            //vBreakMotorLeft(iBreakIntensityMotorLeft);
-            //vBreakMotorRight(iBreakIntensityMotorRight);
+	while (1) {
+		if (bIsBreakingActive) {
+			if (!brakeInProgress) {
+				startTime = millis();
+				brakeInProgress = true;
+			}
+			//Testen ob das passt mit digital, wenn nicht pwm
+			digitalWrite(MotorLeftBreakPin, LOW);
+			digitalWrite(MotorRightBreakPin, LOW);
+			//vBreakMotorLeft(iBreakIntensityMotorLeft);
+			//vBreakMotorRight(iBreakIntensityMotorRight);
 
-            if (millis() - startTime > brakeDuration) {
-                bIsBreakingActive = false;
-                brakeInProgress = false;
-            }
-        }
-        else {
-            digitalWrite(MotorLeftBreakPin, HIGH);
-            digitalWrite(MotorRightBreakPin, HIGH);
-        }
-        vTaskDelay(1 / portTICK_PERIOD_MS);
-    }
+			if (millis() - startTime > brakeDuration) {
+				bIsBreakingActive = false;
+				brakeInProgress = false;
+			}
+		}
+		else {
+			digitalWrite(MotorLeftBreakPin, HIGH);
+			digitalWrite(MotorRightBreakPin, HIGH);
+		}
+		vTaskDelay(1 / portTICK_PERIOD_MS);
+	}
+}
+
+void MeasureHeading(void* parameter) {
+	while (1) {
+		//if (mpu.update()) {
+		//	static uint32_t prev_ms = millis();
+		//	if (millis() > prev_ms + 25) {
+		//		print_roll_pitch_yaw();
+		//		prev_ms = millis();
+		//	}
+		//}
+		vTaskDelay(1000 / portTICK_PERIOD_MS);
+	}
+}
+
+void MeasureAkkuVoltage(void* parameter) {
+	while (1) {
+		
+		vTaskDelay(10000 / portTICK_PERIOD_MS);
+	}
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -379,230 +408,393 @@ void BreakMotors(void* parameter) {
 //Parameter: -
 //return: -
 void init() {
-    Serial.begin(115200);
-    piSerial.begin(BaudRate_9600, SERIAL_8N1, RaspberryPIRXPin, RaspberryPITXPin);
-    Wire.begin(SDA, SCL);
+	Serial.begin(115200);
+	piSerial.begin(BaudRate_9600, SERIAL_8N1, RaspberryPIRXPin, RaspberryPITXPin);
+	Wire.begin(SDA, SCL);
 
-    pinMode(MotorLeftPWMPin, OUTPUT);
-    pinMode(MotorRightPWMPin, OUTPUT);
+	pinMode(MotorLeftPWMPin, OUTPUT);
+	pinMode(MotorRightPWMPin, OUTPUT);
 
-    pinMode(MotorLeftBreakPin, OUTPUT);
-    pinMode(MotorRightBreakPin, OUTPUT);
+	pinMode(MotorLeftBreakPin, OUTPUT);
+	pinMode(MotorRightBreakPin, OUTPUT);
 
-    analogWriteFrequency(MotorLeftPWMPin, 20000);
-    analogWriteFrequency(MotorRightPWMPin, 20000);
+	analogWriteFrequency(MotorLeftPWMPin, 20000);
+	analogWriteFrequency(MotorRightPWMPin, 20000);
 
-    //analogWriteFrequency(MotorLeftBreakPin, 20000);
-    //analogWriteFrequency(MotorRightBreakPin, 20000);
+	//analogWriteFrequency(MotorLeftBreakPin, 20000);
+	//analogWriteFrequency(MotorRightBreakPin, 20000);
 
-    pinMode(MotorLeftSpeedPin, INPUT_PULLUP);
-    pinMode(MotorRightSpeedPin, INPUT_PULLUP);
+	pinMode(MotorLeftSpeedPin, INPUT_PULLUP);
+	pinMode(MotorRightSpeedPin, INPUT_PULLUP);
 
-    attachInterrupt(digitalPinToInterrupt(MotorLeftSpeedPin), vCountPulseMotorLeft, RISING);
-    attachInterrupt(digitalPinToInterrupt(MotorRightSpeedPin), vCountPulseMotorRight, RISING);
+	attachInterrupt(digitalPinToInterrupt(MotorLeftSpeedPin), vCountPulseMotorLeft, RISING);
+	attachInterrupt(digitalPinToInterrupt(MotorRightSpeedPin), vCountPulseMotorRight, RISING);
 
-    pinMode(MotorLeftDrivingDirectionPin, OUTPUT);
-    pinMode(MotorRightDrivingDirectionPin, OUTPUT);
+	pinMode(MotorLeftDrivingDirectionPin, OUTPUT);
+	pinMode(MotorRightDrivingDirectionPin, OUTPUT);
 
-    pinMode(TouchSensorLeft, INPUT);
-    pinMode(TouchSensorRight, INPUT);
+	pinMode(TouchSensorLeft, INPUT);
+	pinMode(TouchSensorRight, INPUT);
 
-    vSetDrivingdirectionMotorLeft(DrivingDirectionForwards);
+	vSetDrivingdirectionMotorLeft(DrivingDirectionForwards);
 }
 
 void initBME280() {
-    vResetBME280();
-    delay(10);
-    uint8_t chipID = ui8ReadRegister(REG_CHIPID);
-    if (chipID != 0x60) {
-        Serial.print("Kein BME280 gefunden! Chip-ID: 0x");
-        Serial.println(chipID, HEX);
-        return;
-    }
+	vResetBME280();
+	delay(10);
+	uint8_t chipID = ui8ReadRegister(REG_CHIPID);
+	if (chipID != 0x60) {
+		Serial.print("Kein BME280 gefunden! Chip-ID: 0x");
+		Serial.println(chipID, HEX);
+		return;
+	}
 
-    vReadCalibrationDataBME280();
+	vReadCalibrationDataBME280();
 
-    vWriteRegister(BME280_ADDR, REG_CTRL_MEAS, 0x27);
+	vWriteRegister(BME280_ADDR, REG_CTRL_MEAS, 0x27);
 }
 
 void initGPSModule() {
-    gpsSerial.begin(BaudRate_9600);
+	gpsSerial.begin(BaudRate_9600);
 }
 
 void initHC12() {
-    funkSerial.begin(BaudRate_9600, SERIAL_8N1, HC12TXPin, HC12RXPin);
-    pinMode(HC12SetPin, OUTPUT);
-    digitalWrite(HC12SetPin, LOW);
-    delay(2000);
+	funkSerial.begin(BaudRate_9600, SERIAL_8N1, HC12TXPin, HC12RXPin);
+	pinMode(HC12SetPin, OUTPUT);
+	digitalWrite(HC12SetPin, LOW);
+	delay(2000);
 
-    Serial.println("Sende AT+BAUD4 (9600 Baud)");
-    funkSerial.println("AT+BAUD4");
-    delay(500);
+	Serial.println("Sende AT+BAUD4 (9600 Baud)");
+	funkSerial.println("AT+BAUD4");
+	delay(500);
 
-    while (funkSerial.available()) {
-        Serial.write(funkSerial.read());
-    }
+	while (funkSerial.available()) {
+		Serial.write(funkSerial.read());
+	}
 
-    Serial.println("Setze Kanal 10 (437.0 MHz)...");
-    funkSerial.print("AT+C003\r\n");
-    delay(500);
+	Serial.println("Setze Kanal 10 (437.0 MHz)...");
+	funkSerial.print("AT+C003\r\n");
+	delay(500);
 
-    while (funkSerial.available()) {
-        Serial.write(funkSerial.read());
-    }
+	while (funkSerial.available()) {
+		Serial.write(funkSerial.read());
+	}
 
-    Serial.println("Sende AT...");
-    funkSerial.println("AT");
-    delay(2000);
+	Serial.println("Sende AT...");
+	funkSerial.println("AT");
+	delay(2000);
 
-    while (funkSerial.available()) {
-        Serial.write(funkSerial.read());
-    }
+	while (funkSerial.available()) {
+		Serial.write(funkSerial.read());
+	}
 
-    digitalWrite(HC12SetPin, HIGH);
+	digitalWrite(HC12SetPin, HIGH);
 }
 
 void initHCSR04() {
-    pinMode(HCSR04TrigPin0, OUTPUT);
-    pinMode(HCSR04EchoPin0, INPUT);
-    pinMode(HCSR04TrigPin1, OUTPUT);
-    pinMode(HCSR04EchoPin1, INPUT);
-    pinMode(HCSR04TrigPin2, OUTPUT);
-    pinMode(HCSR04EchoPin2, INPUT);
+	pinMode(HCSR04TrigPin0, OUTPUT);
+	pinMode(HCSR04EchoPin0, INPUT);
+	pinMode(HCSR04TrigPin1, OUTPUT);
+	pinMode(HCSR04EchoPin1, INPUT);
+	pinMode(HCSR04TrigPin2, OUTPUT);
+	pinMode(HCSR04EchoPin2, INPUT);
 }
 
 //////////////////////////////////////////////////////////////////////////////
 // Setup
 //////////////////////////////////////////////////////////////////////////////
+//uint8_t addrs[7] = { 0 };
+//uint8_t device_count = 0;
+//
+//template <typename WireType = TwoWire>
+//void scan_mpu(WireType& wire = Wire) {
+//	Serial.println("Searching for i2c devices...");
+//	device_count = 0;
+//	for (uint8_t i = 0x68; i < 0x70; ++i) {
+//		wire.beginTransmission(i);
+//		if (wire.endTransmission() == 0) {
+//			addrs[device_count++] = i;
+//			delay(10);
+//		}
+//	}
+//	Serial.print("Found ");
+//	Serial.print(device_count, DEC);
+//	Serial.println(" I2C devices");
+//
+//	Serial.print("I2C addresses are: ");
+//	for (uint8_t i = 0; i < device_count; ++i) {
+//		Serial.print("0x");
+//		Serial.print(addrs[i], HEX);
+//		Serial.print(" ");
+//	}
+//	Serial.println();
+//}
+//
+//template <typename WireType = TwoWire>
+//uint8_t readByte(uint8_t address, uint8_t subAddress, WireType& wire = Wire) {
+//	uint8_t data = 0;
+//	wire.beginTransmission(address);
+//	wire.write(subAddress);
+//	wire.endTransmission(false);
+//	wire.requestFrom(address, (size_t)1);
+//	if (wire.available()) data = wire.read();
+//	return data;
+//}
+//
+//
+//
+//void print_roll_pitch_yaw() {
+//	Serial.print("Yaw, Pitch, Roll: ");
+//	Serial.print(mpu.getYaw(), 2);
+//	Serial.print(", ");
+//	Serial.print(mpu.getPitch(), 2);
+//	Serial.print(", ");
+//	Serial.println(mpu.getRoll(), 2);
+//}
+//
+//void print_calibration() {
+//	Serial.println("< calibration parameters >");
+//	Serial.println("accel bias [g]: ");
+//	Serial.print(mpu.getAccBiasX() * 1000.f / (float)MPU9250::CALIB_ACCEL_SENSITIVITY);
+//	Serial.print(", ");
+//	Serial.print(mpu.getAccBiasY() * 1000.f / (float)MPU9250::CALIB_ACCEL_SENSITIVITY);
+//	Serial.print(", ");
+//	Serial.print(mpu.getAccBiasZ() * 1000.f / (float)MPU9250::CALIB_ACCEL_SENSITIVITY);
+//	Serial.println();
+//	Serial.println("gyro bias [deg/s]: ");
+//	Serial.print(mpu.getGyroBiasX() / (float)MPU9250::CALIB_GYRO_SENSITIVITY);
+//	Serial.print(", ");
+//	Serial.print(mpu.getGyroBiasY() / (float)MPU9250::CALIB_GYRO_SENSITIVITY);
+//	Serial.print(", ");
+//	Serial.print(mpu.getGyroBiasZ() / (float)MPU9250::CALIB_GYRO_SENSITIVITY);
+//	Serial.println();
+//	Serial.println("mag bias [mG]: ");
+//	Serial.print(mpu.getMagBiasX());
+//	Serial.print(", ");
+//	Serial.print(mpu.getMagBiasY());
+//	Serial.print(", ");
+//	Serial.print(mpu.getMagBiasZ());
+//	Serial.println();
+//	Serial.println("mag scale []: ");
+//	Serial.print(mpu.getMagScaleX());
+//	Serial.print(", ");
+//	Serial.print(mpu.getMagScaleY());
+//	Serial.print(", ");
+//	Serial.print(mpu.getMagScaleZ());
+//	Serial.println();
+//}
 
 void setup() {
-    init();
-    initBME280();
-    initGPSModule();
-    initHC12();
-    initHCSR04();
+	init();
+	initBME280();
+	initGPSModule();
+	initHC12();
+	initHCSR04();
 
-    xTaskCreatePinnedToCore(
-        ReceiveDataFromRaspPI,        // Funktion
-        "ReceiveSerialDataFromRaspberryPI",// Name
-        10000,                              // Stack
-        NULL,                               // Parameter
-        2,                                  // Priorität
-        &xHandleReceiveDataFromRaspberryPI,// TaskHandle
-        1                                   // Core
-    );
+	//scan_mpu();
 
-    xTaskCreatePinnedToCore(
-        TransmittDataToRaspPI,        // Funktion
-        "TransmittSerialDataToRaspberryPI",// Name
-        10000,                              // Stack
-        NULL,                               // Parameter
-        2,                                  // Priorität
-        &xHandleTransmittDataToRaspberryPI,// TaskHandle
-        1                                   // Core
-    );
+	//if (device_count == 0) {
+	//	Serial.println("No device found on I2C bus. Please check your hardware connection");
+	//	while (1)
+	//		;
+	//}
 
-    xTaskCreatePinnedToCore(
-        ReadGPSData,        // Funktion
-        "ReadGPSCoordinatesFromGPSModule",// Name
-        10000,                              // Stack
-        NULL,                               // Parameter
-        2,                                  // Priorität
-        &xHandleReadGPSData,// TaskHandle
-        1                                   // Core
-    );
+	//// check WHO_AM_I address of MPU
+	//for (uint8_t i = 0; i < device_count; ++i) {
+	//	Serial.print("I2C address 0x");
+	//	Serial.print(addrs[i], HEX);
+	//	byte ca = readByte(addrs[i], WHO_AM_I_MPU9250);
+	//	if (ca == MPU9250_WHOAMI_DEFAULT_VALUE) {
+	//		Serial.println(" is MPU9250 and ready to use");
+	//	}
+	//	else if (ca == MPU9255_WHOAMI_DEFAULT_VALUE) {
+	//		Serial.println(" is MPU9255 and ready to use");
+	//	}
+	//	else if (ca == MPU6500_WHOAMI_DEFAULT_VALUE) {
+	//		Serial.println(" is MPU6500 and ready to use");
+	//	}
+	//	else {
+	//		Serial.println(" is not MPU series");
+	//		Serial.print("WHO_AM_I is ");
+	//		Serial.println(ca, HEX);
+	//		Serial.println("Please use correct device");
+	//	}
+	//	static constexpr uint8_t AK8963_ADDRESS{ 0x0C };  //  Address of magnetometer
+	//	static constexpr uint8_t AK8963_WHOAMI_DEFAULT_VALUE{ 0x48 };
+	//	byte cb = readByte(AK8963_ADDRESS, AK8963_WHO_AM_I);
+	//	if (cb == AK8963_WHOAMI_DEFAULT_VALUE) {
+	//		Serial.print("AK8963 (Magnetometer) is ready to use");
+	//	}
+	//	else {
+	//		Serial.print("AK8963 (Magnetometer) was not found");
+	//	}
+	//}
 
-    xTaskCreatePinnedToCore(
-        ReadTemperature,        // Funktion
-        "ReadTemperatureFromBME",// Name
-        10000,                              // Stack
-        NULL,                               // Parameter
-        2,                                  // Priorität
-        &xHandleReadTemperature,// TaskHandle
-        1                                   // Core
-    );
+	//if (!mpu.setup(0x68)) {  // change to your own address
+	//	while (1) {
+	//		Serial.println("MPU connection failed. Please check your connection with `connection_check` example.");
+	//		delay(5000);
+	//	}
+	//}
 
-    xTaskCreatePinnedToCore(
-        MeassureMotorSpeed,        // Funktion
-        "MeassureMotorSpeed",// Name
-        10000,                              // Stack
-        NULL,                               // Parameter
-        2,                                  // Priorität
-        &xHandleMeasureMotorSpeed,// TaskHandle
-        1                                   // Core
-    );
+	//// calibrate anytime you want to
+	//Serial.println("Accel Gyro calibration will start in 5sec.");
+	//Serial.println("Please leave the device still on the flat plane.");
+	//mpu.verbose(true);
+	//delay(5000);
+	//mpu.calibrateAccelGyro();
 
-    xTaskCreatePinnedToCore(
-        PlayerTracking,        // Funktion
-        "Follow Player if enabled",// Name
-        10000,                              // Stack
-        NULL,                               // Parameter
-        2,                                  // Priorität
-        &xHandlePlayerTracking,// TaskHandle
-        1                                   // Core
-    );
+	//Serial.println("Mag calibration will start in 5sec.");
+	//Serial.println("Please Wave device in a figure eight until done.");
+	//delay(5000);
+	//mpu.calibrateMag();
 
-    xTaskCreatePinnedToCore(
-        MotorSupport,        // Funktion
-        "Handle Motor Support if enabled",// Name
-        10000,                              // Stack
-        NULL,                               // Parameter
-        2,                                  // Priorität
-        &xHandleMotorSupport,// TaskHandle
-        1                                   // Core
-    );
+	//print_calibration();
+	//mpu.verbose(false);
 
-    xTaskCreatePinnedToCore(
-        CheckSurrounding,        // Funktion
-        "Check if an Obsticle is blocking the way",// Name
-        10000,                              // Stack
-        NULL,                               // Parameter
-        2,                                  // Priorität
-        &xHandleCheckSurrounding,// TaskHandle
-        1                                   // Core
-    );
+
+
+	xTaskCreatePinnedToCore(
+		ReceiveDataFromRaspPI,        // Funktion
+		"ReceiveSerialDataFromRaspberryPI",// Name
+		10000,                              // Stack
+		NULL,                               // Parameter
+		2,                                  // Priorität
+		&xHandleReceiveDataFromRaspberryPI,// TaskHandle
+		1                                   // Core
+	);
+
+	xTaskCreatePinnedToCore(
+		TransmittDataToRaspPI,        // Funktion
+		"TransmittSerialDataToRaspberryPI",// Name
+		10000,                              // Stack
+		NULL,                               // Parameter
+		2,                                  // Priorität
+		&xHandleTransmittDataToRaspberryPI,// TaskHandle
+		1                                   // Core
+	);
+
+	xTaskCreatePinnedToCore(
+		ReadGPSData,        // Funktion
+		"ReadGPSCoordinatesFromGPSModule",// Name
+		10000,                              // Stack
+		NULL,                               // Parameter
+		2,                                  // Priorität
+		&xHandleReadGPSData,// TaskHandle
+		1                                   // Core
+	);
+
+	xTaskCreatePinnedToCore(
+		ReadTemperature,        // Funktion
+		"ReadTemperatureFromBME",// Name
+		10000,                              // Stack
+		NULL,                               // Parameter
+		2,                                  // Priorität
+		&xHandleReadTemperature,// TaskHandle
+		1                                   // Core
+	);
+
+	xTaskCreatePinnedToCore(
+		MeassureMotorSpeed,        // Funktion
+		"MeassureMotorSpeed",// Name
+		10000,                              // Stack
+		NULL,                               // Parameter
+		2,                                  // Priorität
+		&xHandleMeasureMotorSpeed,// TaskHandle
+		1                                   // Core
+	);
+
+	xTaskCreatePinnedToCore(
+		PlayerTracking,        // Funktion
+		"Follow Player if enabled",// Name
+		10000,                              // Stack
+		NULL,                               // Parameter
+		2,                                  // Priorität
+		&xHandlePlayerTracking,// TaskHandle
+		1                                   // Core
+	);
+
+	xTaskCreatePinnedToCore(
+		MotorSupport,        // Funktion
+		"Handle Motor Support if enabled",// Name
+		10000,                              // Stack
+		NULL,                               // Parameter
+		2,                                  // Priorität
+		&xHandleMotorSupport,// TaskHandle
+		1                                   // Core
+	);
+
+	xTaskCreatePinnedToCore(
+		CheckSurrounding,        // Funktion
+		"Check if an Obsticle is blocking the way",// Name
+		10000,                              // Stack
+		NULL,                               // Parameter
+		2,                                  // Priorität
+		&xHandleCheckSurrounding,// TaskHandle
+		1                                   // Core
+	);
 
 #ifdef ObsticaleDetectionWithDogeing
-    xTaskCreatePinnedToCore(
-        vDriveAroundwithCheck,        // Funktion
-        "Drive Around an Object closer then 100cm",// Name
-        10000,                              // Stack
-        NULL,                               // Parameter
-        2,                                  // Priorität
-        &xHandleDriveArroundwithCheck,// TaskHandle
-        1                                   // Core
-    );
+	xTaskCreatePinnedToCore(
+		vDriveAroundwithCheck,        // Funktion
+		"Drive Around an Object closer then 100cm",// Name
+		10000,                              // Stack
+		NULL,                               // Parameter
+		2,                                  // Priorität
+		&xHandleDriveArroundwithCheck,// TaskHandle
+		1                                   // Core
+	);
 
-    xTaskCreatePinnedToCore(
-        vDodgeObsticle,        // Funktion
-        " an Obsticle without setback",// Name
-        10000,                              // Stack
-        NULL,                               // Parameter
-        2,                                  // Priorität
-        &xHandleDodge,// TaskHandle
-        1                                   // Core
-    );
+	xTaskCreatePinnedToCore(
+		vDodgeObsticle,        // Funktion
+		" an Obsticle without setback",// Name
+		10000,                              // Stack
+		NULL,                               // Parameter
+		2,                                  // Priorität
+		&xHandleDodge,// TaskHandle
+		1                                   // Core
+	);
 #endif // ObsticaleDetectionWithDogeing
 
-    xTaskCreatePinnedToCore(
-        ReceiveDataFromTracker,        // Funktion
-        "Receive Data from Tracker",// Name
-        10000,                              // Stack
-        NULL,                               // Parameter
-        2,                                  // Priorität
-        &xHandleReceiveDataFromTracker,// TaskHandle
-        1                                   // Core
-    );
+	xTaskCreatePinnedToCore(
+		ReceiveDataFromTracker,        // Funktion
+		"Receive Data from Tracker",// Name
+		10000,                              // Stack
+		NULL,                               // Parameter
+		2,                                  // Priorität
+		&xHandleReceiveDataFromTracker,// TaskHandle
+		1                                   // Core
+	);
 
-    xTaskCreatePinnedToCore(
-        BreakMotors,        // Funktion
-        "Emergency Braking",// Name
-        10000,                              // Stack
-        NULL,                               // Parameter
-        2,                                  // Priorität
-        &xHandleBrakeTaskHandle,// TaskHandle
-        1                                   // Core
-    );    
+	xTaskCreatePinnedToCore(
+		BreakMotors,        // Funktion
+		"Emergency Braking",// Name
+		10000,                              // Stack
+		NULL,                               // Parameter
+		2,                                  // Priorität
+		&xHandleBrakeTaskHandle,// TaskHandle
+		1                                   // Core
+	);
+
+	xTaskCreatePinnedToCore(
+		MeasureHeading,        // Funktion
+		"Measure Heading",// Name
+		10000,                              // Stack
+		NULL,                               // Parameter
+		2,                                  // Priorität
+		&xHandleMeasureHeading,// TaskHandle
+		1                                   // Core
+	);
+	
+	xTaskCreatePinnedToCore(
+		MeasureAkkuVoltage,        // Funktion
+		"Measure Akku Voltage",// Name
+		10000,                              // Stack
+		NULL,                               // Parameter
+		2,                                  // Priorität
+		&xHandleMeasureAkkuVoltage,// TaskHandle
+		1                                   // Core
+	);
 }
 
 void loop() {

@@ -20,8 +20,8 @@ extern HardwareSerial funkSerial;
 extern SoftwareSerial gpsSerial;
 
 struct GPSCoordinates {
-    double dGolfTrolley_latitude;
-    double dGolfTrolley_longitude;
+    double dGolfTrolley_latitude = 0.0;
+    double dGolfTrolley_longitude = 0.0;
 };
 extern GPSCoordinates trolleyCoords;
 
