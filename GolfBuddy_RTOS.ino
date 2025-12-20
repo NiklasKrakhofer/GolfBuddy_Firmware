@@ -20,6 +20,7 @@
 #include <Wire.h> 
 #include <math.h>
 #include <freertos/semphr.h>
+MPU9250 mpu; // You can also use MPU9255 as is
 
 //////////////////////////////////////////////////////////////////////////////
 // Tasks
@@ -382,20 +383,19 @@ void BreakMotors(void* parameter) {
 
 void MeasureHeading(void* parameter) {
 	while (1) {
-		//if (mpu.update()) {
-		//	static uint32_t prev_ms = millis();
-		//	if (millis() > prev_ms + 25) {
-		//		print_roll_pitch_yaw();
-		//		prev_ms = millis();
-		//	}
-		//}
-		vTaskDelay(1000 / portTICK_PERIOD_MS);
+		if (mpu.update()) {
+			float heading = mpu.getYaw();
+			if (heading < 0) heading += 360;
+			Serial.println(heading);
 	}
+	
+		vTaskDelay(10 / portTICK_PERIOD_MS);
+}
 }
 
 void MeasureAkkuVoltage(void* parameter) {
 	while (1) {
-		RaspPI_transmitData.iBatteryLevel = map(2890, 2703, 3660, 33, 42);
+		RaspPI_transmitData.iBatteryLevel = map(analogRead(AkkuVoltageMeasurePin), 2703, 3660, 33, 42);
 		vTaskDelay(1000 / portTICK_PERIOD_MS);
 	}
 }
@@ -505,86 +505,37 @@ void initHCSR04() {
 //////////////////////////////////////////////////////////////////////////////
 // Setup
 //////////////////////////////////////////////////////////////////////////////
-//uint8_t addrs[7] = { 0 };
-//uint8_t device_count = 0;
-//
-//template <typename WireType = TwoWire>
-//void scan_mpu(WireType& wire = Wire) {
-//	Serial.println("Searching for i2c devices...");
-//	device_count = 0;
-//	for (uint8_t i = 0x68; i < 0x70; ++i) {
-//		wire.beginTransmission(i);
-//		if (wire.endTransmission() == 0) {
-//			addrs[device_count++] = i;
-//			delay(10);
-//		}
-//	}
-//	Serial.print("Found ");
-//	Serial.print(device_count, DEC);
-//	Serial.println(" I2C devices");
-//
-//	Serial.print("I2C addresses are: ");
-//	for (uint8_t i = 0; i < device_count; ++i) {
-//		Serial.print("0x");
-//		Serial.print(addrs[i], HEX);
-//		Serial.print(" ");
-//	}
-//	Serial.println();
-//}
-//
-//template <typename WireType = TwoWire>
-//uint8_t readByte(uint8_t address, uint8_t subAddress, WireType& wire = Wire) {
-//	uint8_t data = 0;
-//	wire.beginTransmission(address);
-//	wire.write(subAddress);
-//	wire.endTransmission(false);
-//	wire.requestFrom(address, (size_t)1);
-//	if (wire.available()) data = wire.read();
-//	return data;
-//}
-//
-//
-//
-//void print_roll_pitch_yaw() {
-//	Serial.print("Yaw, Pitch, Roll: ");
-//	Serial.print(mpu.getYaw(), 2);
-//	Serial.print(", ");
-//	Serial.print(mpu.getPitch(), 2);
-//	Serial.print(", ");
-//	Serial.println(mpu.getRoll(), 2);
-//}
-//
-//void print_calibration() {
-//	Serial.println("< calibration parameters >");
-//	Serial.println("accel bias [g]: ");
-//	Serial.print(mpu.getAccBiasX() * 1000.f / (float)MPU9250::CALIB_ACCEL_SENSITIVITY);
-//	Serial.print(", ");
-//	Serial.print(mpu.getAccBiasY() * 1000.f / (float)MPU9250::CALIB_ACCEL_SENSITIVITY);
-//	Serial.print(", ");
-//	Serial.print(mpu.getAccBiasZ() * 1000.f / (float)MPU9250::CALIB_ACCEL_SENSITIVITY);
-//	Serial.println();
-//	Serial.println("gyro bias [deg/s]: ");
-//	Serial.print(mpu.getGyroBiasX() / (float)MPU9250::CALIB_GYRO_SENSITIVITY);
-//	Serial.print(", ");
-//	Serial.print(mpu.getGyroBiasY() / (float)MPU9250::CALIB_GYRO_SENSITIVITY);
-//	Serial.print(", ");
-//	Serial.print(mpu.getGyroBiasZ() / (float)MPU9250::CALIB_GYRO_SENSITIVITY);
-//	Serial.println();
-//	Serial.println("mag bias [mG]: ");
-//	Serial.print(mpu.getMagBiasX());
-//	Serial.print(", ");
-//	Serial.print(mpu.getMagBiasY());
-//	Serial.print(", ");
-//	Serial.print(mpu.getMagBiasZ());
-//	Serial.println();
-//	Serial.println("mag scale []: ");
-//	Serial.print(mpu.getMagScaleX());
-//	Serial.print(", ");
-//	Serial.print(mpu.getMagScaleY());
-//	Serial.print(", ");
-//	Serial.print(mpu.getMagScaleZ());
-//	Serial.println();
-//}
+void print_calibration() {
+	Serial.println("< calibration parameters >");
+	Serial.println("accel bias [g]: ");
+	Serial.print(mpu.getAccBiasX() * 1000.f / (float)MPU9250::CALIB_ACCEL_SENSITIVITY);
+	Serial.print(", ");
+	Serial.print(mpu.getAccBiasY() * 1000.f / (float)MPU9250::CALIB_ACCEL_SENSITIVITY);
+	Serial.print(", ");
+	Serial.print(mpu.getAccBiasZ() * 1000.f / (float)MPU9250::CALIB_ACCEL_SENSITIVITY);
+	Serial.println();
+	Serial.println("gyro bias [deg/s]: ");
+	Serial.print(mpu.getGyroBiasX() / (float)MPU9250::CALIB_GYRO_SENSITIVITY);
+	Serial.print(", ");
+	Serial.print(mpu.getGyroBiasY() / (float)MPU9250::CALIB_GYRO_SENSITIVITY);
+	Serial.print(", ");
+	Serial.print(mpu.getGyroBiasZ() / (float)MPU9250::CALIB_GYRO_SENSITIVITY);
+	Serial.println();
+	Serial.println("mag bias [mG]: ");
+	Serial.print(mpu.getMagBiasX());
+	Serial.print(", ");
+	Serial.print(mpu.getMagBiasY());
+	Serial.print(", ");
+	Serial.print(mpu.getMagBiasZ());
+	Serial.println();
+	Serial.println("mag scale []: ");
+	Serial.print(mpu.getMagScaleX());
+	Serial.print(", ");
+	Serial.print(mpu.getMagScaleY());
+	Serial.print(", ");
+	Serial.print(mpu.getMagScaleZ());
+	Serial.println();
+}
 
 void setup() {
 	init();
@@ -593,53 +544,22 @@ void setup() {
 	initHC12();
 	initHCSR04();
 
-	//scan_mpu();
+	if (!mpu.setup(0x68)) {  // change to your own address
+		while (1) {
+			Serial.println("MPU connection failed. Please check your connection with `connection_check` example.");
+			delay(5000);
+		}
+	}
 
-	//if (device_count == 0) {
-	//	Serial.println("No device found on I2C bus. Please check your hardware connection");
-	//	while (1)
-	//		;
-	//}
+	// AHRS aktivieren (Tilt Compensation)
+	mpu.ahrs(true);
 
-	//// check WHO_AM_I address of MPU
-	//for (uint8_t i = 0; i < device_count; ++i) {
-	//	Serial.print("I2C address 0x");
-	//	Serial.print(addrs[i], HEX);
-	//	byte ca = readByte(addrs[i], WHO_AM_I_MPU9250);
-	//	if (ca == MPU9250_WHOAMI_DEFAULT_VALUE) {
-	//		Serial.println(" is MPU9250 and ready to use");
-	//	}
-	//	else if (ca == MPU9255_WHOAMI_DEFAULT_VALUE) {
-	//		Serial.println(" is MPU9255 and ready to use");
-	//	}
-	//	else if (ca == MPU6500_WHOAMI_DEFAULT_VALUE) {
-	//		Serial.println(" is MPU6500 and ready to use");
-	//	}
-	//	else {
-	//		Serial.println(" is not MPU series");
-	//		Serial.print("WHO_AM_I is ");
-	//		Serial.println(ca, HEX);
-	//		Serial.println("Please use correct device");
-	//	}
-	//	static constexpr uint8_t AK8963_ADDRESS{ 0x0C };  //  Address of magnetometer
-	//	static constexpr uint8_t AK8963_WHOAMI_DEFAULT_VALUE{ 0x48 };
-	//	byte cb = readByte(AK8963_ADDRESS, AK8963_WHO_AM_I);
-	//	if (cb == AK8963_WHOAMI_DEFAULT_VALUE) {
-	//		Serial.print("AK8963 (Magnetometer) is ready to use");
-	//	}
-	//	else {
-	//		Serial.print("AK8963 (Magnetometer) was not found");
-	//	}
-	//}
+	// Filter auswählen und Iterationen erhöhen
+	mpu.selectFilter(QuatFilterSel::MADGWICK);
+	mpu.setFilterIterations(15);
 
-	//if (!mpu.setup(0x68)) {  // change to your own address
-	//	while (1) {
-	//		Serial.println("MPU connection failed. Please check your connection with `connection_check` example.");
-	//		delay(5000);
-	//	}
-	//}
+	mpu.setMagneticDeclination(5.2833);
 
-	//// calibrate anytime you want to
 	//Serial.println("Accel Gyro calibration will start in 5sec.");
 	//Serial.println("Please leave the device still on the flat plane.");
 	//mpu.verbose(true);
@@ -654,7 +574,10 @@ void setup() {
 	//print_calibration();
 	//mpu.verbose(false);
 
-
+	mpu.setAccBias(-145.52, 16.36, 36.64);
+	mpu.setGyroBias(-6.70, 1.79, 0.39);
+	mpu.setMagBias(528.64, 144.32, 20.80);
+	mpu.setMagScale(0.91, 1.02, 1.08);
 
 	xTaskCreatePinnedToCore(
 		ReceiveDataFromRaspPI,        // Funktion
