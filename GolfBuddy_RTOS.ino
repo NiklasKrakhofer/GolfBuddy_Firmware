@@ -21,8 +21,6 @@
 #include <math.h>
 #include <freertos/semphr.h>
 
-MPU9250 mpu;
-
 //////////////////////////////////////////////////////////////////////////////
 // Tasks
 //////////////////////////////////////////////////////////////////////////////
@@ -50,10 +48,133 @@ TaskHandle_t xHandleDodge;
 //      Decodes Received Massage and sets Variables.
 //Param: -
 void ReceiveDataFromRaspPI(void* pvParameters) {
+	//static uint8_t raspiReceiveBuffer[RASPI_RES_BUFFER_SIZE];
+	//static uint16_t len = 0;
+
+	//// Control-Parsing
+	//static bool digitReceived = false;
+	//static char controlDigit = 0;
+
+	//// RTCM-Parsing
+	//static bool rtcmInProgress = false;
+	//static uint16_t rtcmExpectedLen = 0;
+
 	while (1) {
+
+		//// -------------------------------------------------
+		//// 1. Byte einlesen (non-blocking)
+		//// -------------------------------------------------
+		//if (piSerial.available()) {
+		//	uint8_t b = piSerial.read();
+
+		//	if (len < RASPI_RES_BUFFER_SIZE) {
+		//		raspiReceiveBuffer[len++] = b;
+		//	}
+		//	else {
+		//		// Overflow → hart resetten
+		//		len = 0;
+		//		rtcmInProgress = false;
+		//		digitReceived = false;
+		//	}
+		//}
+
+		//if (len == 0) {
+		//	vTaskDelay(1 / portTICK_PERIOD_MS);
+		//	continue;
+		//}
+
+		//// -------------------------------------------------
+		//// 2. RTCM-Start erkennen (nur wenn kein RTCM aktiv)
+		//// -------------------------------------------------
+		//if (!rtcmInProgress && raspiReceiveBuffer[0] == 0xD3) {
+
+		//	// Header noch nicht komplett
+		//	if (len < 3) {
+		//		vTaskDelay(1 / portTICK_PERIOD_MS);
+		//		continue;
+		//	}
+
+		//	uint16_t payloadLen =
+		//		((raspiReceiveBuffer[1] & 0x03) << 8) |
+		//		raspiReceiveBuffer[2];
+
+		//	rtcmExpectedLen = 3 + payloadLen + 3; // Header + Payload + CRC
+		//	rtcmInProgress = true;
+		//}
+
+		//// -------------------------------------------------
+		//// 3. RTCM komplett empfangen → weiterleiten
+		//// -------------------------------------------------
+		//if (rtcmInProgress) {
+
+		//	if (len < rtcmExpectedLen) {
+		//		// Noch nicht vollständig → nichts anderes tun
+		//		vTaskDelay(1 / portTICK_PERIOD_MS);
+		//		continue;
+		//	}
+
+		//	// Komplettes RTCM-Paket weiterleiten
+		//	gpsSerial.write(raspiReceiveBuffer, rtcmExpectedLen);
+
+		//	// Buffer bereinigen
+		//	uint16_t remaining = len - rtcmExpectedLen;
+		//	if (remaining > 0) {
+		//		memmove(raspiReceiveBuffer,
+		//			raspiReceiveBuffer + rtcmExpectedLen,
+		//			remaining);
+		//	}
+
+		//	len = remaining;
+		//	rtcmInProgress = false;
+
+		//	continue; // WICHTIG: kein Text-Parsing im selben Durchlauf
+		//}
+
+		//// -------------------------------------------------
+		//// 4. Text / Control (nur wenn KEIN RTCM aktiv)
+		//// -------------------------------------------------
+		//char c = raspiReceiveBuffer[0];
+
+		//if (c >= '0' && c <= '9' && !digitReceived) {
+		//	controlDigit = c;
+		//	digitReceived = true;
+		//}
+		//else if (c == '\n') {
+		//	if (digitReceived) {
+		//		int command = controlDigit - '0';
+
+		//		if (command == 0) {
+		//			bIsPlayerTrackingActivated = false;
+		//			bIsMotorSupportActivated = false;
+		//		}
+		//		else if (command == 1) {
+		//			bIsPlayerTrackingActivated = true;
+		//			bIsMotorSupportActivated = false;
+		//		}
+		//		else if (command == 2) {
+		//			bIsPlayerTrackingActivated = false;
+		//			bIsMotorSupportActivated = true;
+		//		}
+		//	}
+		//	Serial.println(bIsPlayerTrackingActivated);
+		//	Serial.println(bIsMotorSupportActivated);
+
+		//	// Reset für nächste Zeile
+		//	digitReceived = false;
+		//	controlDigit = 0;
+		//}
+
+		//// -------------------------------------------------
+		//// 5. Verarbeitetes Byte aus Buffer entfernen
+		//// -------------------------------------------------
+		//memmove(raspiReceiveBuffer,
+		//	raspiReceiveBuffer + 1,
+		//	len - 1);
+		//len--;
+
 		if (piSerial.available() > 0) {
 			String sReceivedData = piSerial.readStringUntil('\n');
-
+			Serial.println(sReceivedData);
 			String sDataSegments[10];
 			int iDataSegmentIndex = 0;
 			String sCurrentDataSegment = "";
@@ -73,19 +194,22 @@ void ReceiveDataFromRaspPI(void* pvParameters) {
 				sDataSegments[iDataSegmentIndex++] = sCurrentDataSegment;
 			}
 
-			if (sDataSegments[1].toInt() == 0) {
+			if (sDataSegments[0].toInt() == 0) {
 				bIsPlayerTrackingActivated = false;
 				bIsMotorSupportActivated = false;
 			}
-			else if (sDataSegments[1].toInt() == 1) {
+			else if (sDataSegments[0].toInt() == 1) {
 				bIsPlayerTrackingActivated = true;
 				bIsMotorSupportActivated = false;
 			}
-			else if (sDataSegments[1].toInt() == 2) {
+			else if (sDataSegments[0].toInt() == 2) {
 				bIsPlayerTrackingActivated = false;
 				bIsMotorSupportActivated = true;
 			}
+			//Serial.println(bIsPlayerTrackingActivated);
+			//Serial.println(bIsMotorSupportActivated);
 		}
+
 		vTaskDelay(1 / portTICK_PERIOD_MS);
 	}
 }
@@ -159,7 +283,6 @@ void PlayerTracking(void* pvParameter) {
 		trolleyCoords.dGolfTrolley_longitude == 0.0) {
 		vTaskDelay(500 / portTICK_PERIOD_MS);
 	}
-
 	while (true) {
 		if (bIsPlayerTrackingActivated && !bDogingactive && !bIsBreakingActive) {
 			if (targetCoordsBuffer.empty())
@@ -193,6 +316,9 @@ void MotorSupport(void* pvParameter) {
 void CheckSurrounding(void* pvParameter) {
 	while (1) {
 		//vCheckSurrounding(); 
+		if (!bIsPlayerTrackingActivated && !bIsMotorSupportActivated) {
+			vParking();
+		}
 		vTaskDelay(100 / portTICK_PERIOD_MS);
 	}
 }
@@ -203,6 +329,7 @@ void ReceiveDataFromTracker(void* pvParameter) {
 	while (1) {
 		while (funkSerial.available()) {
 			char c = funkSerial.read();
+			//Serial.println(c);
 			if (c == ';') {
 				sIncomeTrackerDataFields[iIncomeTrackerFieldIndex] = sCurrentIncomeTrackerDataField;
 				iIncomeTrackerFieldIndex++;
@@ -213,15 +340,18 @@ void ReceiveDataFromTracker(void* pvParameter) {
 
 				double latitude = sIncomeTrackerDataFields[0].toDouble();
 				double longitude = sIncomeTrackerDataFields[1].toDouble();
+
 				if (sIncomeTrackerDataFields[2] == "1")
 				{
-					bIsPlayerTrackingActivated = true;
+					trackerTrackingFlag = true;
 				}
 				else
 				{
-					bIsPlayerTrackingActivated = false;
+					trackerTrackingFlag = false;
 				}
-				if (latitude != 0 && longitude != 0 && bIsPlayerTrackingActivated) {
+				if (latitude != 0.0 && longitude != 0.0 && bIsPlayerTrackingActivated) {
+					//Serial.println(latitude, 6);
+					//Serial.println(longitude, 6);
 					targetCoordsBuffer.push_back({ latitude, longitude });
 				}
 
@@ -357,7 +487,7 @@ void BreakMotors(void* parameter) {
 				startTime = millis();
 				brakeInProgress = true;
 			}
-			//Testen ob das passt mit digital, wenn nicht pwm
+
 			digitalWrite(MotorLeftBreakPin, LOW);
 			digitalWrite(MotorRightBreakPin, LOW);
 			//vBreakMotorLeft(iBreakIntensityMotorLeft);
@@ -381,7 +511,12 @@ void MeasureHeading(void* parameter) {
 		if (mpu.update()) {
 			float heading = mpu.getYaw();
 			if (heading < 0) heading += 360;
-			RaspPI_transmitData.fFacingDirection = heading;
+
+			heading += 80.0;
+
+			if (heading >= 360.0) heading -= 360.0;
+			RaspPI_transmitData.fFacingDirection = heading + 17;
+			//Serial.println(RaspPI_transmitData.fFacingDirection);
 		}
 
 		vTaskDelay(10 / portTICK_PERIOD_MS);
@@ -391,7 +526,10 @@ void MeasureHeading(void* parameter) {
 void MeasureAkkuVoltage(void* parameter) {
 	while (1) {
 		RaspPI_transmitData.iBatteryLevel = map(analogRead(AkkuVoltageMeasurePin), 2703, 3660, 33, 42);
-		vTaskDelay(10000 / portTICK_PERIOD_MS);
+		if (RaspPI_transmitData.iBatteryLevel < 33) {
+			RaspPI_transmitData.iBatteryLevel = 33;
+		}
+		vTaskDelay(1000 / portTICK_PERIOD_MS);
 	}
 }
 
@@ -452,7 +590,7 @@ void initBME280() {
 }
 
 void initGPSModule() {
-	gpsSerial.begin(BaudRate_9600);
+	gpsSerial.begin(19200);
 }
 
 void initHC12() {
@@ -498,9 +636,9 @@ void initHCSR04() {
 }
 
 void initMPU9250() {
-	if (!mpu.setup(0x68)) {  // change to your own address
+	if (!mpu.setup(0x68)) {
 		while (1) {
-			Serial.println("MPU connection failed. Please check your connection with `connection_check` example.");
+			Serial.println("MPU connection failed!");
 			delay(5000);
 		}
 	}
@@ -545,6 +683,10 @@ void setup() {
 	initHC12();
 	initHCSR04();
 	initMPU9250();
+
+	targetCoordsBuffer.push_back({ 48.19113452521475, 16.39736800597968 });
+	RaspPI_transmitData.dLatitudeGolfBuddy = 48.28659492421564;
+	RaspPI_transmitData.dLongitudeGolfBuddy = 16.497860077134096;
 
 	xTaskCreatePinnedToCore(
 		ReceiveDataFromRaspPI,        // Funktion

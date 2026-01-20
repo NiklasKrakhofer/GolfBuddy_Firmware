@@ -94,3 +94,7 @@ const uint32_t brakeDuration = 3000;
 bool bIsBreakingActive = false;
 int iBreakIntensityMotorLeft;
 int iBreakIntensityMotorRight;
+
+MPU9250 mpu;
+
+bool trackerTrackingFlag = false;

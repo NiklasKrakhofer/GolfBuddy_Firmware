@@ -55,12 +55,12 @@ void softReset() {
 void vSendTransmitdataToPi() {
     String out =
         String(RaspPI_transmitData.iBatteryLevel) + ";" +
-        String(RaspPI_transmitData.dLatitudeGolfBuddy) + ";" +
-        String(RaspPI_transmitData.dLongitudeGolfBuddy) + ";" +
+        String(RaspPI_transmitData.dLatitudeGolfBuddy, 6) + ";" +
+        String(RaspPI_transmitData.dLongitudeGolfBuddy, 6) + ";" +
         String(RaspPI_transmitData.fFacingDirection) + ";" +
-        String(bIsPlayerTrackingActivated) +
+        String(trackerTrackingFlag) +
         "\n";
-
+    Serial.println(out); // 
     piSerial.write(out.c_str());
 }
 
@@ -179,6 +179,8 @@ void updateGetHeadingWithGPS()
 }
 
 void vPlayerTracking(const GPSCoordinates& targetCoords, const GPSCoordinates& currentCoords) {
+    vSetDrivingdirectionMotorLeft(DrivingDirectionForwards);
+    vSetDrivingdirectionMotorRight(DrivingDirectionForwards);
 	// Determine tracking speed based on buffer status
  //   if () {
  //       iTrackingRPM = 200; // faster
@@ -189,16 +191,18 @@ void vPlayerTracking(const GPSCoordinates& targetCoords, const GPSCoordinates& c
 	//else if () { // TODO: check if this case is possible
  //       iTrackingRPM = 0; // stehen bleiben -> ziel erreicht
  //   }
-    
+
 	// Update heading control to face target coordinate
     vUpdateHeadingControl(RaspPI_transmitData.fFacingDirection, dGetTargetHeading(currentCoords, targetCoords), iTrackingRPM, 0.5);
 
 	// Regulate motors to desired RPM
     vRegulateMotorLeftRPM(fSollMotorLeftRPM);
     vRegulateMotorRightRPM(fSollMotorRightRPM);
-   
+    Serial.println(currentCoords.dGolfTrolley_latitude,6);
+    Serial.println(currentCoords.dGolfTrolley_longitude,6),
+    Serial.println(dCalculateHaversine(currentCoords.dGolfTrolley_latitude, currentCoords.dGolfTrolley_longitude, targetCoords.dGolfTrolley_latitude, targetCoords.dGolfTrolley_longitude)); //Should be 17.5m
 	// If within 2 meters, mark coordinate as reached and remove it from buffer
-    if (dCalculateHaversine(currentCoords.dGolfTrolley_latitude, currentCoords.dGolfTrolley_longitude, targetCoords.dGolfTrolley_latitude, targetCoords.dGolfTrolley_longitude) < 2) {
+    if (dCalculateHaversine(currentCoords.dGolfTrolley_latitude, currentCoords.dGolfTrolley_longitude, targetCoords.dGolfTrolley_latitude, targetCoords.dGolfTrolley_longitude) < 20) {
         if (!targetCoordsBuffer.empty()) {
             targetCoordsBuffer.erase(targetCoordsBuffer.begin());
         }
@@ -302,6 +306,8 @@ float fPIRegulate(float fSetpoint, float fAactual) {
 }
 
 void vMotorSupport() {
+    vSetDrivingdirectionMotorLeft(DrivingDirectionBackwards);
+    vSetDrivingdirectionMotorRight(DrivingDirectionBackwards);
     if (digitalRead(TouchSensorLeft) || digitalRead(TouchSensorRight)) {
         vRegulateMotorLeftRPM(fBaseSpeedSetting);
         vRegulateMotorRightRPM(fBaseSpeedSetting);
@@ -312,8 +318,8 @@ void vMotorSupport() {
 }
 
 void vParking() {
-    vRegulateMotorLeftRPM(RPM_0);
-    vRegulateMotorRightRPM(RPM_0);
+    analogWrite(MotorLeftPWMPin, 0);
+    analogWrite(MotorRightPWMPin, 0);
     if (fMotorLeftRPM < RPM_10 && fMotorRightRPM < RPM_10) {
         vBreakMotorLeft(255);
         vBreakMotorRight(255);

@@ -12,6 +12,7 @@
 #include <SoftwareSerial.h>
 #include "freertos/semphr.h"
 #include "GolfBuddy_RTOS_Constants.h"
+#include "MPU9250.h"
 
 // Hardware Serials
 extern TinyGPSPlus gps;
@@ -20,8 +21,8 @@ extern HardwareSerial funkSerial;
 extern SoftwareSerial gpsSerial;
 
 struct GPSCoordinates {
-    double dGolfTrolley_latitude = 0.0;
-    double dGolfTrolley_longitude = 0.0;
+    double dGolfTrolley_latitude = 48.28659492421564;
+    double dGolfTrolley_longitude = 16.497860077134096;
 };
 extern GPSCoordinates trolleyCoords;
 
@@ -133,6 +134,9 @@ struct HCSR04_average {
         average = summ / count;
     }
 };
+
+extern MPU9250 mpu;
+extern bool trackerTrackingFlag;
 
 #endif
 

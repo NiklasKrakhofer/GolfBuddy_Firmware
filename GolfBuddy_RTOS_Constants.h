@@ -10,8 +10,8 @@
 // PIN Declaration
 ///////////////////////////////////////////////////////////////////////////////////////////////
 
-#define RaspberryPIRXPin 19
-#define RaspberryPITXPin 20
+#define RaspberryPIRXPin 20
+#define RaspberryPITXPin 19
 
 #define MotorLeftSpeedPin 21
 #define MotorLeftPWMPin 47
@@ -39,9 +39,10 @@
 #define SDA 11
 #define SCL 12
 
-#define GPSRXPin 9
-#define GPSTXPin 10
-
+//#define GPSRXPin 9
+//#define GPSTXPin 10
+#define GPSRXPin 10
+#define GPSTXPin 9
 #define TouchSensorLeft 8
 #define TouchSensorRight 3
 
@@ -115,6 +116,8 @@
 #define CALIB_TIME 10000UL
 
 #define BUFFER_Coordinates_SIZE 1000
+
+#define RASPI_RES_BUFFER_SIZE 4096  
 
 #endif
 
