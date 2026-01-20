@@ -284,13 +284,16 @@ void PlayerTracking(void* pvParameter) {
 		vTaskDelay(500 / portTICK_PERIOD_MS);
 	}
 	while (true) {
-		if (bIsPlayerTrackingActivated && !bDogingactive && !bIsBreakingActive) {
-			if (targetCoordsBuffer.empty())
-			{
-				vParking();
-			}
-			else {
-				vPlayerTracking(targetCoordsBuffer[0], trolleyCoords);
+		if (!bIsBreakingActive) {
+			Serial.println(bIsBreakingActive);
+			if (bIsPlayerTrackingActivated && !bDogingactive) {
+				if (targetCoordsBuffer.empty())
+				{
+					vParking();
+				}
+				else {
+					vPlayerTracking(targetCoordsBuffer[0], trolleyCoords);
+				}
 			}
 		}
 		vTaskDelay(10 / portTICK_PERIOD_MS);
@@ -315,7 +318,7 @@ void MotorSupport(void* pvParameter) {
 //@return: -
 void CheckSurrounding(void* pvParameter) {
 	while (1) {
-		//vCheckSurrounding(); 
+		vCheckSurrounding();
 		if (!bIsPlayerTrackingActivated && !bIsMotorSupportActivated) {
 			vParking();
 		}
@@ -488,13 +491,15 @@ void BreakMotors(void* parameter) {
 				brakeInProgress = true;
 			}
 
+			analogWrite(MotorLeftPWMPin, 0);
+			analogWrite(MotorRightPWMPin, 0);
 			digitalWrite(MotorLeftBreakPin, LOW);
 			digitalWrite(MotorRightBreakPin, LOW);
 			//vBreakMotorLeft(iBreakIntensityMotorLeft);
 			//vBreakMotorRight(iBreakIntensityMotorRight);
 
-			if (millis() - startTime > brakeDuration) {
-				bIsBreakingActive = false;
+			if (millis() - startTime > brakeDuration && fGetMessuredDistanceofHCSR04(cSensorIDArray[0]) > 10 && fGetMessuredDistanceofHCSR04(cSensorIDArray[1]) > 10 && fGetMessuredDistanceofHCSR04(cSensorIDArray[2]) > 10) {
+				bIsBreakingActive = false; // Nur wenn die distanz größer ist
 				brakeInProgress = false;
 			}
 		}

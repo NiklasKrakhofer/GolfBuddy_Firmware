@@ -321,8 +321,8 @@ void vParking() {
     analogWrite(MotorLeftPWMPin, 0);
     analogWrite(MotorRightPWMPin, 0);
     if (fMotorLeftRPM < RPM_10 && fMotorRightRPM < RPM_10) {
-        vBreakMotorLeft(255);
-        vBreakMotorRight(255);
+        vBreakMotorLeft(255); //???Falsches Bremesn
+        vBreakMotorRight(255); //???Falsches Bremesn
     }
 }
 
@@ -376,7 +376,7 @@ void vCheckSurrounding() {
 
     float fDistance = fGetMessuredDistanceofHCSR04(cSensorIDArray[sensorIndex]);
 
-    if (fDistance < 100) {
+    if (fDistance < 10) {
         bIsBreakingActive = true;
         iBreakIntensityMotorLeft = EmergencyBreaking;
         iBreakIntensityMotorRight = EmergencyBreaking;
