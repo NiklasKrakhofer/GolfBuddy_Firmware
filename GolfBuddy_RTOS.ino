@@ -20,7 +20,8 @@
 #include <Wire.h> 
 #include <math.h>
 #include <freertos/semphr.h>
-MPU9250 mpu; // You can also use MPU9255 as is
+
+MPU9250 mpu;
 
 //////////////////////////////////////////////////////////////////////////////
 // Tasks
@@ -72,15 +73,15 @@ void ReceiveDataFromRaspPI(void* pvParameters) {
 				sDataSegments[iDataSegmentIndex++] = sCurrentDataSegment;
 			}
 
-			if (sDataSegments[0].toInt() == 0) {
+			if (sDataSegments[1].toInt() == 0) {
 				bIsPlayerTrackingActivated = false;
 				bIsMotorSupportActivated = false;
 			}
-			else if (sDataSegments[0].toInt() == 1) {
+			else if (sDataSegments[1].toInt() == 1) {
 				bIsPlayerTrackingActivated = true;
 				bIsMotorSupportActivated = false;
 			}
-			else if (sDataSegments[0].toInt() == 2) {
+			else if (sDataSegments[1].toInt() == 2) {
 				bIsPlayerTrackingActivated = false;
 				bIsMotorSupportActivated = true;
 			}
@@ -152,22 +153,17 @@ void MeassureMotorSpeed(void* pvParameter) {
 //Param: -
 void PlayerTracking(void* pvParameter) {
 	GPSCoordinates targetCoords;
-	// Make a set forward to get the trolley heading
+
 	// Warten, bis gültige GPS-Daten vorhanden sind
 	while (trolleyCoords.dGolfTrolley_latitude == 0.0 ||
 		trolleyCoords.dGolfTrolley_longitude == 0.0) {
 		vTaskDelay(500 / portTICK_PERIOD_MS);
 	}
 
-	vMakeASetForward();
-	delay(2000);
-	vRegulateMotorLeftRPM(0);
-	vRegulateMotorRightRPM(0);
-	while (1) {
+	while (true) {
 		if (bIsPlayerTrackingActivated && !bDogingactive && !bIsBreakingActive) {
 			if (targetCoordsBuffer.empty())
 			{
-				Serial.println("Parking");
 				vParking();
 			}
 			else {
@@ -176,7 +172,6 @@ void PlayerTracking(void* pvParameter) {
 		}
 		vTaskDelay(10 / portTICK_PERIOD_MS);
 	}
-
 }
 
 //Task: If bIsMotorSupportActivated is activated and Touchsensor/s is/are triggerd both Motors are regulated to BaseSpeed. 
@@ -386,17 +381,17 @@ void MeasureHeading(void* parameter) {
 		if (mpu.update()) {
 			float heading = mpu.getYaw();
 			if (heading < 0) heading += 360;
-			Serial.println(heading);
-	}
-	
+			RaspPI_transmitData.fFacingDirection = heading;
+		}
+
 		vTaskDelay(10 / portTICK_PERIOD_MS);
-}
+	}
 }
 
 void MeasureAkkuVoltage(void* parameter) {
 	while (1) {
 		RaspPI_transmitData.iBatteryLevel = map(analogRead(AkkuVoltageMeasurePin), 2703, 3660, 33, 42);
-		vTaskDelay(1000 / portTICK_PERIOD_MS);
+		vTaskDelay(10000 / portTICK_PERIOD_MS);
 	}
 }
 
@@ -502,48 +497,7 @@ void initHCSR04() {
 	pinMode(HCSR04EchoPin2, INPUT);
 }
 
-//////////////////////////////////////////////////////////////////////////////
-// Setup
-//////////////////////////////////////////////////////////////////////////////
-void print_calibration() {
-	Serial.println("< calibration parameters >");
-	Serial.println("accel bias [g]: ");
-	Serial.print(mpu.getAccBiasX() * 1000.f / (float)MPU9250::CALIB_ACCEL_SENSITIVITY);
-	Serial.print(", ");
-	Serial.print(mpu.getAccBiasY() * 1000.f / (float)MPU9250::CALIB_ACCEL_SENSITIVITY);
-	Serial.print(", ");
-	Serial.print(mpu.getAccBiasZ() * 1000.f / (float)MPU9250::CALIB_ACCEL_SENSITIVITY);
-	Serial.println();
-	Serial.println("gyro bias [deg/s]: ");
-	Serial.print(mpu.getGyroBiasX() / (float)MPU9250::CALIB_GYRO_SENSITIVITY);
-	Serial.print(", ");
-	Serial.print(mpu.getGyroBiasY() / (float)MPU9250::CALIB_GYRO_SENSITIVITY);
-	Serial.print(", ");
-	Serial.print(mpu.getGyroBiasZ() / (float)MPU9250::CALIB_GYRO_SENSITIVITY);
-	Serial.println();
-	Serial.println("mag bias [mG]: ");
-	Serial.print(mpu.getMagBiasX());
-	Serial.print(", ");
-	Serial.print(mpu.getMagBiasY());
-	Serial.print(", ");
-	Serial.print(mpu.getMagBiasZ());
-	Serial.println();
-	Serial.println("mag scale []: ");
-	Serial.print(mpu.getMagScaleX());
-	Serial.print(", ");
-	Serial.print(mpu.getMagScaleY());
-	Serial.print(", ");
-	Serial.print(mpu.getMagScaleZ());
-	Serial.println();
-}
-
-void setup() {
-	init();
-	initBME280();
-	initGPSModule();
-	initHC12();
-	initHCSR04();
-
+void initMPU9250() {
 	if (!mpu.setup(0x68)) {  // change to your own address
 		while (1) {
 			Serial.println("MPU connection failed. Please check your connection with `connection_check` example.");
@@ -560,6 +514,7 @@ void setup() {
 
 	mpu.setMagneticDeclination(5.2833);
 
+	// Kalibrierung der Sensoren
 	//Serial.println("Accel Gyro calibration will start in 5sec.");
 	//Serial.println("Please leave the device still on the flat plane.");
 	//mpu.verbose(true);
@@ -578,6 +533,18 @@ void setup() {
 	mpu.setGyroBias(-6.70, 1.79, 0.39);
 	mpu.setMagBias(528.64, 144.32, 20.80);
 	mpu.setMagScale(0.91, 1.02, 1.08);
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// Setup
+//////////////////////////////////////////////////////////////////////////////
+void setup() {
+	init();
+	initBME280();
+	initGPSModule();
+	initHC12();
+	initHCSR04();
+	initMPU9250();
 
 	xTaskCreatePinnedToCore(
 		ReceiveDataFromRaspPI,        // Funktion
@@ -710,7 +677,7 @@ void setup() {
 		&xHandleMeasureHeading,// TaskHandle
 		1                                   // Core
 	);
-	
+
 	xTaskCreatePinnedToCore(
 		MeasureAkkuVoltage,        // Funktion
 		"Measure Akku Voltage",// Name

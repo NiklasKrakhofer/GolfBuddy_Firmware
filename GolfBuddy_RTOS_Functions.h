@@ -47,6 +47,7 @@ void vMakeASetBack();
 void vMakeASetForward();
 void vSpinToHeading(float fTargetHeading);
 void vAccelarate(int iIntensity);
+void print_MPU9250_calibration();
 
 #endif
 
