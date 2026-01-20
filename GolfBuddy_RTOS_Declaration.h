@@ -118,7 +118,7 @@ extern int iBreakIntensityMotorLeft;
 extern int iBreakIntensityMotorRight;
 
 struct HCSR04_average {
-    static constexpr int n = 6;
+    static constexpr int n = 4;
     float data[n] = { 0 };
     int index = 0;
     int count = 0;
