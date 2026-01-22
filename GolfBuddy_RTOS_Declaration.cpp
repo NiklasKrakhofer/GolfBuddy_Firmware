@@ -55,7 +55,7 @@ float fKiMotorRegulator = 0.02;
 float fIntegralMotorRegulator = 0;
 
 // Base speed and sensors
-float fBaseSpeedSetting = 100;
+float fBaseSpeedSetting = 200;
 char cSensorIDArray[3] = { HCSR04VorneLinks, HCSR04VorneRechts, HCSR04Hinten };
 float fMeasuredDistances[3];
 

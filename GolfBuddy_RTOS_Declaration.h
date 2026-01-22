@@ -21,8 +21,8 @@ extern HardwareSerial funkSerial;
 extern SoftwareSerial gpsSerial;
 
 struct GPSCoordinates {
-    double dGolfTrolley_latitude = 48.28659492421564;
-    double dGolfTrolley_longitude = 16.497860077134096;
+    double dGolfTrolley_latitude = 0.0;
+    double dGolfTrolley_longitude = 0.0;
 };
 extern GPSCoordinates trolleyCoords;
 
@@ -47,7 +47,7 @@ extern int32_t i32T_fine;
 
 // Transmit data struct
 struct TransmitDataToPi {
-    int     iBatteryLevel = 0;
+    float   iBatteryLevel = 0.0;
     double  dLatitudeGolfBuddy = 0.0;
     double  dLongitudeGolfBuddy = 0.0;
     float   fFacingDirection = 0.0;
