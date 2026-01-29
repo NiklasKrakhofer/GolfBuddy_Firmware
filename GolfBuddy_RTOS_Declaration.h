@@ -136,7 +136,10 @@ struct HCSR04_average {
 };
 
 extern MPU9250 mpu;
-extern bool trackerTrackingFlag;
+extern int trackerTrackingFlag;
+
+extern int MotorPwmLeft;
+extern int MotorPwmRight;
 
 #endif
 

@@ -98,4 +98,6 @@ int iBreakIntensityMotorRight;
 
 MPU9250 mpu;
 
-bool trackerTrackingFlag = false;
+int trackerTrackingFlag = 0;
+int MotorPwmLeft = 0;
+int MotorPwmRight = 0;

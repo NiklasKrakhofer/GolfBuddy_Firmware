@@ -47,44 +47,105 @@ TaskHandle_t xHandleDodge;
 //                                                             DriveMode = 2 -> MotorSupport activated
 //      Decodes Received Massage and sets Variables.
 //Param: -
+enum class RxState {
+	WAIT_SYNC,
+	READ_RTCM_HEADER,
+	READ_RTCM_PAYLOAD,
+	READ_RTCM_CRC,
+	WAIT_CONTROL_BYTE,
+	READ_CONTROL
+};
+
 void ReceiveDataFromRaspPI(void* pvParameters) {
+	static RxState state = RxState::WAIT_SYNC;
+
+	static uint8_t rtcm_header[3];
+	static uint16_t rtcm_payload_len = 0;
+	static uint16_t rtcm_total_len = 0;
+	static uint8_t rtcm_frame[1024];
+	static uint16_t rtcm_index = 0;
+
+	static uint8_t ctrl_byte = 0;
+	static bool ctrl_wait_stop = false;
+
 	while (1) {
-		if (piSerial.available() > 0) {
-			String sReceivedData = piSerial.readStringUntil('\n');
-			String sDataSegments[10];
-			int iDataSegmentIndex = 0;
-			String sCurrentDataSegment = "";
-
-			for (int i = 0; i < sReceivedData.length(); i++) {
-				char c = sReceivedData[i];
-				if (c == ';') {
-					sDataSegments[iDataSegmentIndex++] = sCurrentDataSegment;
-					sCurrentDataSegment = "";
-				}
-				else {
-					sCurrentDataSegment += c;
-				}
-			}
-
-			if (sCurrentDataSegment.length() > 0) {
-				sDataSegments[iDataSegmentIndex++] = sCurrentDataSegment;
-			}
-
-			if (sDataSegments[0].toInt() == 0) {
-				bIsPlayerTrackingActivated = false;
-				bIsMotorSupportActivated = false;
-			}
-			else if (sDataSegments[0].toInt() == 1) {
-				bIsPlayerTrackingActivated = true;
-				bIsMotorSupportActivated = false;
-			}
-			else if (sDataSegments[0].toInt() == 2) {
-				bIsPlayerTrackingActivated = false;
-				bIsMotorSupportActivated = true;
-			}
+		if (piSerial.available() == 0) {
+			vTaskDelay(1);
+			continue;
 		}
+
+		uint8_t byte1 = piSerial.read();
+
+		switch (state) {
+		case RxState::WAIT_SYNC:
+			if (byte1 == 0xD3) { rtcm_header[0] = byte1; state = RxState::READ_RTCM_HEADER; rtcm_index = 1; }
+			else if (byte1 == 0xAA) { state = RxState::READ_CONTROL; ctrl_wait_stop = false; }
+			break;
+
+		case RxState::READ_RTCM_HEADER:
+			rtcm_header[rtcm_index++] = byte1;
+			if (rtcm_index == 3) {
+				rtcm_payload_len = ((uint16_t)rtcm_header[1] << 8 | rtcm_header[2]) & 0x03FF;
+				rtcm_total_len = 3 + rtcm_payload_len + 3;
+				if (rtcm_total_len > sizeof(rtcm_frame)) { state = RxState::WAIT_SYNC; break; }
+				memcpy(rtcm_frame, rtcm_header, 3);
+				rtcm_index = 3;
+				state = RxState::READ_RTCM_PAYLOAD;
+			}
+			break;
+
+		case RxState::READ_RTCM_PAYLOAD:
+			rtcm_frame[rtcm_index++] = byte1;
+			// Kurzer Delay alle 50 Bytes, Watchdog schonen
+			if (rtcm_index % 50 == 0) vTaskDelay(1);
+			if (rtcm_index == 3 + rtcm_payload_len) state = RxState::READ_RTCM_CRC;
+			break;
+
+		case RxState::READ_RTCM_CRC:
+			rtcm_frame[rtcm_index++] = byte1;
+			if (rtcm_index == rtcm_total_len) {
+				uint32_t calc_crc = crc24q(rtcm_frame, 3 + rtcm_payload_len);
+				uint32_t recv_crc = (rtcm_frame[3 + rtcm_payload_len] << 16) |
+					(rtcm_frame[3 + rtcm_payload_len + 1] << 8) |
+					rtcm_frame[3 + rtcm_payload_len + 2];
+
+				uint16_t msg_id = ((uint16_t)rtcm_frame[3] << 4) | ((rtcm_frame[4] & 0xF0) >> 4);
+
+				// Debug nur Header + CRC
+				Serial.printf("[RTCM] ID:%u Len:%u CRC:%s\n", msg_id, rtcm_total_len,
+					(calc_crc == recv_crc) ? "OK" : "FEHLER");
+
+				if (calc_crc == recv_crc) {
+					gpsSerial.write(rtcm_frame, rtcm_total_len);
+
+					// --- DIREKT STEUERDATEN AUSLESEN ---
+					if (piSerial.available() >= 3) { // Stelle sicher, dass alle 3 Bytes da sind
+						uint8_t ctrl_sync = piSerial.read();
+						uint8_t Trolley_Mode = piSerial.read();
+						uint8_t stopbyte = piSerial.read();
+
+						if (ctrl_sync == 0xAA && stopbyte == 0xFF) {
+							Serial.printf("[CTRL] Trolley_Mode (direkt nach RTCM): %u\n", Trolley_Mode);
+						}
+						else {
+							Serial.println("[CTRL] Fehler beim direkten Auslesen der Steuerdaten!");
+						}
+					}
+				}
+
+				state = RxState::WAIT_SYNC;
+			}
+			break;
+
+		case RxState::READ_CONTROL:
+			if (!ctrl_wait_stop) { ctrl_byte = byte1; ctrl_wait_stop = true; }
+			else {
+				if (byte1 == 0xFF) Serial.printf("[CTRL] Trolley_Mode: %u\n", ctrl_byte);
+				else Serial.println("[CTRL] STOPBYTE FEHLER!");
+				state = RxState::WAIT_SYNC;
+			}
+			break;
 		}
-		vTaskDelay(1 / portTICK_PERIOD_MS);
 	}
 }
 
@@ -110,11 +171,17 @@ void ReadGPSData(void* pvParameters) {
 			trolleyCoords.dGolfTrolley_latitude = gps.location.lat();
 			trolleyCoords.dGolfTrolley_longitude = gps.location.lng();
 
+			//Serial.println(trolleyCoords.dGolfTrolley_latitude, 6);
+			//Serial.println(trolleyCoords.dGolfTrolley_longitude, 6);
+
 			RaspPI_transmitData.dLatitudeGolfBuddy = trolleyCoords.dGolfTrolley_latitude;
 			RaspPI_transmitData.dLongitudeGolfBuddy = trolleyCoords.dGolfTrolley_longitude;
 		}
 		while (gpsSerial.available() > 0) {
 			gps.encode(gpsSerial.read());
+
+			/*char c = gpsSerial.read();
+			Serial.print(c);*/
 		}
 		vTaskDelay(1 / portTICK_PERIOD_MS);
 	}
@@ -124,8 +191,8 @@ void ReadGPSData(void* pvParameters) {
 //Param: -
 void ReadTemperature(void* pvParameter) {
 	while (1) {
-		int32_t i32RawTemp = i32ReadRawTemperatureBME280();
-		float fTemperature = fCompensateTemperatureBME280(i32RawTemp);
+		/*int32_t i32RawTemp = i32ReadRawTemperatureBME280();
+		float fTemperature = fCompensateTemperatureBME280(i32RawTemp);*/
 		vTaskDelay(1000 / portTICK_PERIOD_MS);
 	}
 }
@@ -191,7 +258,10 @@ void MotorSupport(void* pvParameter) {
 //@return: -
 void CheckSurrounding(void* pvParameter) {
 	while (1) {
-		vCheckSurrounding();
+		if (!bIsMotorSupportActivated)
+		{
+			//vCheckSurrounding();
+		}
 		if (!bIsPlayerTrackingActivated && !bIsMotorSupportActivated) {
 			vParking();
 		}
@@ -221,7 +291,7 @@ void ReceiveDataFromTracker(void* pvParameter) {
 				double latitude = sIncomeTrackerDataFields[0].toDouble();
 				double longitude = sIncomeTrackerDataFields[1].toDouble();
 
-				if (sIncomeTrackerDataFields[2] == "1")
+				if (sIncomeTrackerDataFields[2] == "1") // Muss kontrolliert werden ob funktioniert wegen 1\n kann vielleicht auch mit 1;\n gefixt werden
 				{
 					trackerTrackingFlag = true;
 				}
@@ -233,9 +303,9 @@ void ReceiveDataFromTracker(void* pvParameter) {
 				if (millis() - lastUpdate >= interval) {
 					lastUpdate = millis();
 
-				if (latitude != 0.0 && longitude != 0.0 && bIsPlayerTrackingActivated) {
-					targetCoordsBuffer.push_back({ latitude, longitude });
-				}
+					if (latitude != 0.0 && longitude != 0.0 && bIsPlayerTrackingActivated) {
+						targetCoordsBuffer.push_back({ latitude, longitude });
+					}
 
 				}
 
@@ -397,9 +467,7 @@ void MeasureHeading(void* parameter) {
 		if (mpu.update()) {
 			float heading = mpu.getYaw();
 			if (heading < 0) heading += 360;
-
-			heading += 80.0;
-
+			heading += 15;
 			if (heading >= 360.0) heading -= 360.0;
 			RaspPI_transmitData.fFacingDirection = heading;
 			//Serial.println(RaspPI_transmitData.fFacingDirection);
@@ -523,41 +591,41 @@ void initHCSR04() {
 }
 
 void initMPU9250() {
-	if (!mpu.setup(0x68)) {
-		while (1) {
-			Serial.println("MPU connection failed!");
-			delay(5000);
-		}
-	}
+	//if (!mpu.setup(0x68)) {
+	//	while (1) {
+	//		Serial.println("MPU connection failed!");
+	//		delay(5000);
+	//	}
+	//}
 
-	// AHRS aktivieren (Tilt Compensation)
-	mpu.ahrs(true);
+	//// AHRS aktivieren (Tilt Compensation)
+	//mpu.ahrs(true);
 
-	// Filter auswählen und Iterationen erhöhen
-	mpu.selectFilter(QuatFilterSel::MADGWICK);
-	mpu.setFilterIterations(15);
+	//// Filter auswählen und Iterationen erhöhen
+	//mpu.selectFilter(QuatFilterSel::MADGWICK);
+	//mpu.setFilterIterations(15);
 
-	mpu.setMagneticDeclination(5.2833);
+	//mpu.setMagneticDeclination(5.2833);
 
-	// Kalibrierung der Sensoren
-	//Serial.println("Accel Gyro calibration will start in 5sec.");
-	//Serial.println("Please leave the device still on the flat plane.");
-	//mpu.verbose(true);
-	//delay(5000);
-	//mpu.calibrateAccelGyro();
+	//// Kalibrierung der Sensoren
+	////Serial.println("Accel Gyro calibration will start in 5sec.");
+	////Serial.println("Please leave the device still on the flat plane.");
+	////mpu.verbose(true);
+	////delay(5000);
+	////mpu.calibrateAccelGyro();
 
-	//Serial.println("Mag calibration will start in 5sec.");
-	//Serial.println("Please Wave device in a figure eight until done.");
-	//delay(5000);
-	//mpu.calibrateMag();
+	////Serial.println("Mag calibration will start in 5sec.");
+	////Serial.println("Please Wave device in a figure eight until done.");
+	////delay(5000);
+	////mpu.calibrateMag();
 
-	//print_calibration();
-	//mpu.verbose(false);
+	////print_MPU9250_calibration();
+	////mpu.verbose(false);
 
-	mpu.setAccBias(-145.52, 16.36, 36.64);
-	mpu.setGyroBias(-6.70, 1.79, 0.39);
-	mpu.setMagBias(528.64, 144.32, 20.80);
-	mpu.setMagScale(0.91, 1.02, 1.08);
+	//mpu.setAccBias(81.02, -942.55, -652.85);
+	//mpu.setGyroBias(-6.64, 2.20, -0.03);
+	//mpu.setMagBias(575.39, 164.16, -220.18);
+	//mpu.setMagScale(0.74, 1.11, 1.32);
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -571,7 +639,20 @@ void setup() {
 	initHCSR04();
 	initMPU9250();
 
-	targetCoordsBuffer.push_back({ 48.19113452521475, 16.39736800597968 });
+	//targetCoordsBuffer.push_back({ 48.191787768768535, 16.397051539658563 }); //Kalibrierkoordinate
+
+	/*targetCoordsBuffer.push_back({ 48.19167695312045, 16.397048079899708 });
+	targetCoordsBuffer.push_back({ 48.19162106865085, 16.397131909809133 });
+	targetCoordsBuffer.push_back({ 48.19173417875418, 16.39730091090654 });
+	targetCoordsBuffer.push_back({ 48.191790510174954, 16.39721976355422 });*/
+
+	//targetCoordsBuffer.push_back({ 48.19176949766811, 16.39721775163639 });
+	//targetCoordsBuffer.push_back({ 48.19173686120418, 16.397243235928855 });
+	//targetCoordsBuffer.push_back({ 48.1917042247195, 16.397225799307694 });
+	//targetCoordsBuffer.push_back({ 48.19170556594531, 16.397174160083487 });
+	//targetCoordsBuffer.push_back({ 48.19167918849799, 16.397099719123915 });
+	//targetCoordsBuffer.push_back({ 48.19162196280286, 16.397129227252034 });
+	//targetCoordsBuffer.push_back({ 48.1918714305996, 16.39717348944421 });
 
 	xTaskCreatePinnedToCore(
 		ReceiveDataFromRaspPI,        // Funktion

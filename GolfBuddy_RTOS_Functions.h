@@ -49,6 +49,7 @@ void vSpinToHeading(float fTargetHeading);
 void vAccelarate(int iIntensity);
 void print_MPU9250_calibration();
 float mapFloat(float x, float in_min, float in_max, float out_min, float out_max);
+uint32_t crc24q(const uint8_t* data, uint16_t len);
 
 #endif
 

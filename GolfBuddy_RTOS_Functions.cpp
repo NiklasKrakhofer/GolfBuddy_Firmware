@@ -51,7 +51,7 @@ void softReset() {
     vWriteRegister(ADDR, 0x0a, 0x80);
     vWriteRegister(ADDR, 0x0b, 0x01);
 }
-
+  
 void vSendTransmitdataToPi() {
     String out =
         String(RaspPI_transmitData.iBatteryLevel) + ";" +
@@ -192,14 +192,18 @@ void vPlayerTracking(const GPSCoordinates& targetCoords, const GPSCoordinates& c
  //   }
 
 	// Update heading control to face target coordinate
-    vUpdateHeadingControl(RaspPI_transmitData.fFacingDirection, dGetTargetHeading(currentCoords, targetCoords), iTrackingRPM, 0.5);
-
+    vUpdateHeadingControl(RaspPI_transmitData.fFacingDirection, dGetTargetHeading(currentCoords, targetCoords), iTrackingRPM, 0.75);
+    Serial.println(dGetTargetHeading(currentCoords, targetCoords));
+    Serial.println(RaspPI_transmitData.fFacingDirection);
+    Serial.println(fSollMotorLeftRPM);
+    Serial.println(fSollMotorRightRPM);
 	// Regulate motors to desired RPM
     vRegulateMotorLeftRPM(fSollMotorLeftRPM);
     vRegulateMotorRightRPM(fSollMotorRightRPM);
-    Serial.println(currentCoords.dGolfTrolley_latitude,6);
-    Serial.println(currentCoords.dGolfTrolley_longitude,6),
-    Serial.println(dCalculateHaversine(currentCoords.dGolfTrolley_latitude, currentCoords.dGolfTrolley_longitude, targetCoords.dGolfTrolley_latitude, targetCoords.dGolfTrolley_longitude)); //Should be 17.5m
+
+    //analogWrite(MotorLeftPWMPin, MotorPwmRight);
+    //analogWrite(MotorRightPWMPin, MotorPwmLeft);
+   
 	// If within 2 meters, mark coordinate as reached and remove it from buffer
     if (dCalculateHaversine(currentCoords.dGolfTrolley_latitude, currentCoords.dGolfTrolley_longitude, targetCoords.dGolfTrolley_latitude, targetCoords.dGolfTrolley_longitude) < 4) {
         if (!targetCoordsBuffer.empty()) {
@@ -547,4 +551,16 @@ float mapFloat(float x, float in_min, float in_max,
 {
     return (x - in_min) * (out_max - out_min) /
         (in_max - in_min) + out_min;
+}
+
+uint32_t crc24q(const uint8_t* data, uint16_t len) {
+    uint32_t crc = 0;
+    for (uint16_t i = 0; i < len; i++) {
+        crc ^= ((uint32_t)data[i]) << 16;
+        for (uint8_t j = 0; j < 8; j++) {
+            crc <<= 1;
+            if (crc & 0x1000000) crc ^= 0x1864CFB;
+        }
+    }
+    return crc & 0xFFFFFF;
 }
