@@ -8,8 +8,9 @@
 // Hardware Serials
 TinyGPSPlus gps;
 HardwareSerial piSerial(1);
-HardwareSerial funkSerial(2);
-SoftwareSerial gpsSerial = SoftwareSerial(GPSRXPin, GPSTXPin);
+HardwareSerial gpsSerial(2);
+SoftwareSerial funkSerial = SoftwareSerial(HC12TXPin, HC12RXPin);
+
 GPSCoordinates trolleyCoords;
 
 // Motor encoder
@@ -88,7 +89,7 @@ bool bDodgeLeft = false;
 bool bIsPlayerTrackingActivated = false;
 bool bIsMotorSupportActivated = false;
 
-int iTrackingRPM = 50;
+int iTrackingRPM = 75;
 
 const uint32_t brakeDuration = 3000;
 bool bIsBreakingActive = false;

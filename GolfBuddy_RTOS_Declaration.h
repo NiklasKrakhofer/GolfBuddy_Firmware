@@ -17,8 +17,8 @@
 // Hardware Serials
 extern TinyGPSPlus gps;
 extern HardwareSerial piSerial;
-extern HardwareSerial funkSerial;
-extern SoftwareSerial gpsSerial;
+extern HardwareSerial gpsSerial;
+extern SoftwareSerial funkSerial;
 
 struct GPSCoordinates {
     double dGolfTrolley_latitude = 0.0;

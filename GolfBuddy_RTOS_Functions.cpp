@@ -60,7 +60,6 @@ void vSendTransmitdataToPi() {
         String(RaspPI_transmitData.fFacingDirection) + ";" +
         String(trackerTrackingFlag) +
         "\n";
-    Serial.println(out); // 
     piSerial.write(out.c_str());
 }
 
@@ -202,7 +201,7 @@ void vPlayerTracking(const GPSCoordinates& targetCoords, const GPSCoordinates& c
     Serial.println(currentCoords.dGolfTrolley_longitude,6),
     Serial.println(dCalculateHaversine(currentCoords.dGolfTrolley_latitude, currentCoords.dGolfTrolley_longitude, targetCoords.dGolfTrolley_latitude, targetCoords.dGolfTrolley_longitude)); //Should be 17.5m
 	// If within 2 meters, mark coordinate as reached and remove it from buffer
-    if (dCalculateHaversine(currentCoords.dGolfTrolley_latitude, currentCoords.dGolfTrolley_longitude, targetCoords.dGolfTrolley_latitude, targetCoords.dGolfTrolley_longitude) < 20) {
+    if (dCalculateHaversine(currentCoords.dGolfTrolley_latitude, currentCoords.dGolfTrolley_longitude, targetCoords.dGolfTrolley_latitude, targetCoords.dGolfTrolley_longitude) < 4) {
         if (!targetCoordsBuffer.empty()) {
             targetCoordsBuffer.erase(targetCoordsBuffer.begin());
         }
@@ -309,8 +308,8 @@ void vMotorSupport() {
     vSetDrivingdirectionMotorLeft(DrivingDirectionBackwards);
     vSetDrivingdirectionMotorRight(DrivingDirectionBackwards);
     if (digitalRead(TouchSensorLeft) || digitalRead(TouchSensorRight)) {
-        vRegulateMotorLeftRPM(fBaseSpeedSetting);
-        vRegulateMotorRightRPM(fBaseSpeedSetting);
+        analogWrite(MotorLeftPWMPin, 50);
+        analogWrite(MotorRightPWMPin, 50);
     }
     else {
         vParking();
@@ -376,7 +375,7 @@ void vCheckSurrounding() {
 
     float fDistance = fGetMessuredDistanceofHCSR04(cSensorIDArray[sensorIndex]);
 
-    if (fDistance < 10) {
+    if (fDistance < 150) {
         bIsBreakingActive = true;
         iBreakIntensityMotorLeft = EmergencyBreaking;
         iBreakIntensityMotorRight = EmergencyBreaking;

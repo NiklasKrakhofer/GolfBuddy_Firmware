@@ -202,6 +202,10 @@ void CheckSurrounding(void* pvParameter) {
 //Task: !
 //Param: -
 void ReceiveDataFromTracker(void* pvParameter) {
+
+	static unsigned long lastUpdate = 0;
+	const unsigned long interval = 5000;
+
 	while (1) {
 		while (funkSerial.available()) {
 			char c = funkSerial.read();
@@ -225,10 +229,14 @@ void ReceiveDataFromTracker(void* pvParameter) {
 				{
 					trackerTrackingFlag = false;
 				}
+
+				if (millis() - lastUpdate >= interval) {
+					lastUpdate = millis();
+
 				if (latitude != 0.0 && longitude != 0.0 && bIsPlayerTrackingActivated) {
-					//Serial.println(latitude, 6);
-					//Serial.println(longitude, 6);
 					targetCoordsBuffer.push_back({ latitude, longitude });
+				}
+
 				}
 
 				sCurrentIncomeTrackerDataField = "";
@@ -393,7 +401,7 @@ void MeasureHeading(void* parameter) {
 			heading += 80.0;
 
 			if (heading >= 360.0) heading -= 360.0;
-			RaspPI_transmitData.fFacingDirection = heading + 17;
+			RaspPI_transmitData.fFacingDirection = heading;
 			//Serial.println(RaspPI_transmitData.fFacingDirection);
 		}
 
@@ -420,7 +428,7 @@ void MeasureAkkuVoltage(void* parameter) {
 //return: -
 void init() {
 	Serial.begin(115200);
-	piSerial.begin(BaudRate_9600, SERIAL_8N1, RaspberryPIRXPin, RaspberryPITXPin);
+	piSerial.begin(115200, SERIAL_8N1, RaspberryPIRXPin, RaspberryPITXPin);
 	Wire.begin(SDA, SCL);
 
 	pinMode(MotorLeftPWMPin, OUTPUT);
@@ -435,8 +443,8 @@ void init() {
 	//analogWriteFrequency(MotorLeftBreakPin, 20000);
 	//analogWriteFrequency(MotorRightBreakPin, 20000);
 
-	pinMode(MotorLeftSpeedPin, INPUT_PULLUP);
-	pinMode(MotorRightSpeedPin, INPUT_PULLUP);
+	pinMode(MotorLeftSpeedPin, INPUT);
+	pinMode(MotorRightSpeedPin, INPUT);
 
 	attachInterrupt(digitalPinToInterrupt(MotorLeftSpeedPin), vCountPulseMotorLeft, RISING);
 	attachInterrupt(digitalPinToInterrupt(MotorRightSpeedPin), vCountPulseMotorRight, RISING);
@@ -468,11 +476,12 @@ void initBME280() {
 }
 
 void initGPSModule() {
-	gpsSerial.begin(19200);
+	gpsSerial.begin(19200, SERIAL_8N1, GPSRXPin, GPSTXPin);
 }
 
 void initHC12() {
-	funkSerial.begin(BaudRate_9600, SERIAL_8N1, HC12TXPin, HC12RXPin);
+	funkSerial.begin(9600);
+
 	pinMode(HC12SetPin, OUTPUT);
 	digitalWrite(HC12SetPin, LOW);
 	delay(2000);
