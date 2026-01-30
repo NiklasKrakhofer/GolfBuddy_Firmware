@@ -62,90 +62,122 @@ void ReceiveDataFromRaspPI(void* pvParameters) {
 	static uint8_t rtcm_header[3];
 	static uint16_t rtcm_payload_len = 0;
 	static uint16_t rtcm_total_len = 0;
-	static uint8_t rtcm_frame[1024];
+	static uint8_t rtcm_frame[4096];
 	static uint16_t rtcm_index = 0;
 
 	static uint8_t ctrl_byte = 0;
 	static bool ctrl_wait_stop = false;
 
+	static uint32_t lastByteTime = 0;
+#define FRAME_TIMEOUT_MS 50
+
 	while (1) {
-		if (piSerial.available() == 0) {
-			vTaskDelay(1);
-			continue;
+
+		if (state != RxState::WAIT_SYNC &&
+			(millis() - lastByteTime) > FRAME_TIMEOUT_MS)
+		{
+			state = RxState::WAIT_SYNC;
+			rtcm_index = 0;
+			ctrl_wait_stop = false;
 		}
 
-		uint8_t byte1 = piSerial.read();
+		while (piSerial.available() > 0) {
+			uint8_t byte1 = piSerial.read();
+			lastByteTime = millis();
 
-		switch (state) {
-		case RxState::WAIT_SYNC:
-			if (byte1 == 0xD3) { rtcm_header[0] = byte1; state = RxState::READ_RTCM_HEADER; rtcm_index = 1; }
-			else if (byte1 == 0xAA) { state = RxState::READ_CONTROL; ctrl_wait_stop = false; }
-			break;
+			switch (state) {
+			case RxState::WAIT_SYNC:
+				if (byte1 == 0xD3) { rtcm_header[0] = byte1; state = RxState::READ_RTCM_HEADER; rtcm_index = 1; }
+				else if (byte1 == 0xAA) { state = RxState::READ_CONTROL; ctrl_wait_stop = false; }
+				break;
 
-		case RxState::READ_RTCM_HEADER:
-			rtcm_header[rtcm_index++] = byte1;
-			if (rtcm_index == 3) {
-				rtcm_payload_len = ((uint16_t)rtcm_header[1] << 8 | rtcm_header[2]) & 0x03FF;
-				rtcm_total_len = 3 + rtcm_payload_len + 3;
-				if (rtcm_total_len > sizeof(rtcm_frame)) { state = RxState::WAIT_SYNC; break; }
-				memcpy(rtcm_frame, rtcm_header, 3);
-				rtcm_index = 3;
-				state = RxState::READ_RTCM_PAYLOAD;
-			}
-			break;
+			case RxState::READ_RTCM_HEADER:
+				rtcm_header[rtcm_index++] = byte1;
+				if (rtcm_index == 3) {
+					rtcm_payload_len = ((uint16_t)rtcm_header[1] << 8 | rtcm_header[2]) & 0x03FF;
+					rtcm_total_len = 3 + rtcm_payload_len + 3;
+					if (rtcm_total_len > sizeof(rtcm_frame)) { state = RxState::WAIT_SYNC; break; }
+					memcpy(rtcm_frame, rtcm_header, 3);
+					rtcm_index = 3;
+					state = RxState::READ_RTCM_PAYLOAD;
+				}
+				break;
 
-		case RxState::READ_RTCM_PAYLOAD:
-			rtcm_frame[rtcm_index++] = byte1;
-			// Kurzer Delay alle 50 Bytes, Watchdog schonen
-			if (rtcm_index % 50 == 0) vTaskDelay(1);
-			if (rtcm_index == 3 + rtcm_payload_len) state = RxState::READ_RTCM_CRC;
-			break;
+			case RxState::READ_RTCM_PAYLOAD:
+				rtcm_frame[rtcm_index++] = byte1;
 
-		case RxState::READ_RTCM_CRC:
-			rtcm_frame[rtcm_index++] = byte1;
-			if (rtcm_index == rtcm_total_len) {
-				uint32_t calc_crc = crc24q(rtcm_frame, 3 + rtcm_payload_len);
-				uint32_t recv_crc = (rtcm_frame[3 + rtcm_payload_len] << 16) |
-					(rtcm_frame[3 + rtcm_payload_len + 1] << 8) |
-					rtcm_frame[3 + rtcm_payload_len + 2];
-
-				uint16_t msg_id = ((uint16_t)rtcm_frame[3] << 4) | ((rtcm_frame[4] & 0xF0) >> 4);
-
-				// Debug nur Header + CRC
-				Serial.printf("[RTCM] ID:%u Len:%u CRC:%s\n", msg_id, rtcm_total_len,
-					(calc_crc == recv_crc) ? "OK" : "FEHLER");
-
-				if (calc_crc == recv_crc) {
-					gpsSerial.write(rtcm_frame, rtcm_total_len);
-
-					// --- DIREKT STEUERDATEN AUSLESEN ---
-					if (piSerial.available() >= 3) { // Stelle sicher, dass alle 3 Bytes da sind
-						uint8_t ctrl_sync = piSerial.read();
-						uint8_t Trolley_Mode = piSerial.read();
-						uint8_t stopbyte = piSerial.read();
-
-						if (ctrl_sync == 0xAA && stopbyte == 0xFF) {
-							Serial.printf("[CTRL] Trolley_Mode (direkt nach RTCM): %u\n", Trolley_Mode);
-						}
-						else {
-							Serial.println("[CTRL] Fehler beim direkten Auslesen der Steuerdaten!");
-						}
-					}
+				if (rtcm_index >= sizeof(rtcm_frame)) {
+					state = RxState::WAIT_SYNC;
+					rtcm_index = 0;
+					break;
 				}
 
-				state = RxState::WAIT_SYNC;
-			}
-			break;
+				if (rtcm_index == 3 + rtcm_payload_len)
+					state = RxState::READ_RTCM_CRC;
+				break;
 
-		case RxState::READ_CONTROL:
-			if (!ctrl_wait_stop) { ctrl_byte = byte1; ctrl_wait_stop = true; }
-			else {
-				if (byte1 == 0xFF) Serial.printf("[CTRL] Trolley_Mode: %u\n", ctrl_byte);
-				else Serial.println("[CTRL] STOPBYTE FEHLER!");
-				state = RxState::WAIT_SYNC;
+			case RxState::READ_RTCM_CRC:
+				rtcm_frame[rtcm_index++] = byte1;
+				if (rtcm_index == rtcm_total_len) {
+					uint32_t calc_crc = crc24q(rtcm_frame, 3 + rtcm_payload_len);
+					uint32_t recv_crc = (rtcm_frame[3 + rtcm_payload_len] << 16) |
+						(rtcm_frame[3 + rtcm_payload_len + 1] << 8) |
+						rtcm_frame[3 + rtcm_payload_len + 2];
+
+					uint16_t msg_id = ((uint16_t)rtcm_frame[3] << 4) | ((rtcm_frame[4] & 0xF0) >> 4);
+
+					// Debug nur Header + CRC
+					//Serial.printf("[RTCM] ID:%u Len:%u CRC:%s\n", msg_id, rtcm_total_len,
+					//	(calc_crc == recv_crc) ? "OK" : "FEHLER");
+
+					if (calc_crc == recv_crc) {
+						gpsSerial.write(rtcm_frame, rtcm_total_len);
+
+						// --- DIREKT STEUERDATEN AUSLESEN ---
+						if (piSerial.available() >= 3) { // Stelle sicher, dass alle 3 Bytes da sind
+							uint8_t ctrl_sync = piSerial.read();
+							uint8_t Trolley_Mode = piSerial.read();
+							uint8_t stopbyte = piSerial.read();
+
+							if (ctrl_sync == 0xAA && stopbyte == 0xFF) {
+								//Serial.printf("[CTRL] Trolley_Mode (direkt nach RTCM): %u\n", Trolley_Mode);
+								if (Trolley_Mode == 0) {
+									bIsPlayerTrackingActivated = false;
+									bIsMotorSupportActivated = false;
+								}
+								else if (Trolley_Mode == 1) {
+									bIsPlayerTrackingActivated = true;
+									bIsMotorSupportActivated = false;
+								}
+								else if (Trolley_Mode == 2) {
+									bIsPlayerTrackingActivated = false;
+									bIsMotorSupportActivated = true;
+								}
+								//Serial.println(bIsPlayerTrackingActivated);
+								//Serial.println(bIsMotorSupportActivated);
+							}
+							else {
+								//Serial.println("[CTRL] Fehler beim direkten Auslesen der Steuerdaten!");
+							}
+						}
+					}
+
+					state = RxState::WAIT_SYNC;
+				}
+				break;
+
+			case RxState::READ_CONTROL:
+				if (!ctrl_wait_stop) { ctrl_byte = byte1; ctrl_wait_stop = true; }
+				else {
+					if (byte1 == 0xFF) Serial.printf("[CTRL] Trolley_Mode: %u\n", ctrl_byte);
+					else Serial.println("[CTRL] STOPBYTE FEHLER!");
+					state = RxState::WAIT_SYNC;
+				}
+				break;
+
 			}
-			break;
 		}
+		vTaskDelay(1);
 	}
 }
 
@@ -496,6 +528,7 @@ void MeasureAkkuVoltage(void* parameter) {
 //return: -
 void init() {
 	Serial.begin(115200);
+	piSerial.setRxBufferSize(2048);
 	piSerial.begin(115200, SERIAL_8N1, RaspberryPIRXPin, RaspberryPITXPin);
 	Wire.begin(SDA, SCL);
 
@@ -507,9 +540,6 @@ void init() {
 
 	analogWriteFrequency(MotorLeftPWMPin, 20000);
 	analogWriteFrequency(MotorRightPWMPin, 20000);
-
-	//analogWriteFrequency(MotorLeftBreakPin, 20000);
-	//analogWriteFrequency(MotorRightBreakPin, 20000);
 
 	pinMode(MotorLeftSpeedPin, INPUT);
 	pinMode(MotorRightSpeedPin, INPUT);
