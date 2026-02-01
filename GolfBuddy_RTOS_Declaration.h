@@ -13,6 +13,7 @@
 #include "freertos/semphr.h"
 #include "GolfBuddy_RTOS_Constants.h"
 #include "MPU9250.h"
+#include <qmc5883p.h>
 
 // Hardware Serials
 extern TinyGPSPlus gps;
