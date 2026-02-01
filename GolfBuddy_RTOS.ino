@@ -20,6 +20,7 @@
 #include <Wire.h> 
 #include <math.h>
 #include <freertos/semphr.h>
+#include <qmc5883p.h>
 
 //////////////////////////////////////////////////////////////////////////////
 // Tasks
@@ -223,9 +224,9 @@ void ReadGPSData(void* pvParameters) {
 //Param: -
 void ReadTemperature(void* pvParameter) {
 	while (1) {
-		/*int32_t i32RawTemp = i32ReadRawTemperatureBME280();
-		float fTemperature = fCompensateTemperatureBME280(i32RawTemp);*/
-		vTaskDelay(1000 / portTICK_PERIOD_MS);
+		int32_t i32RawTemp = i32ReadRawTemperatureBME280();
+		float fTemperature = fCompensateTemperatureBME280(i32RawTemp);
+		vTaskDelay(10000 / portTICK_PERIOD_MS);
 	}
 }
 
@@ -279,6 +280,11 @@ void MotorSupport(void* pvParameter) {
 		if (bIsMotorSupportActivated && !bDogingactive) {
 			vMotorSupport();
 		}
+
+		if (!bIsPlayerTrackingActivated && !bIsMotorSupportActivated) {
+			vParking();
+		}
+
 		vTaskDelay(1 / portTICK_PERIOD_MS);
 	}
 }
@@ -292,10 +298,7 @@ void CheckSurrounding(void* pvParameter) {
 	while (1) {
 		if (!bIsMotorSupportActivated)
 		{
-			//vCheckSurrounding();
-		}
-		if (!bIsPlayerTrackingActivated && !bIsMotorSupportActivated) {
-			vParking();
+			vCheckSurrounding();
 		}
 		vTaskDelay(100 / portTICK_PERIOD_MS);
 	}
@@ -478,8 +481,6 @@ void BreakMotors(void* parameter) {
 			analogWrite(MotorRightPWMPin, 0);
 			digitalWrite(MotorLeftBreakPin, LOW);
 			digitalWrite(MotorRightBreakPin, LOW);
-			//vBreakMotorLeft(iBreakIntensityMotorLeft);
-			//vBreakMotorRight(iBreakIntensityMotorRight);
 
 			if (millis() - startTime > brakeDuration && fGetMessuredDistanceofHCSR04(cSensorIDArray[0]) > 10 && fGetMessuredDistanceofHCSR04(cSensorIDArray[1]) > 10 && fGetMessuredDistanceofHCSR04(cSensorIDArray[2]) > 10) {
 				bIsBreakingActive = false; // Nur wenn die distanz größer ist
@@ -495,6 +496,9 @@ void BreakMotors(void* parameter) {
 }
 
 void MeasureHeading(void* parameter) {
+	/*const float SCALE_AVG = 0.411f;
+	const float SCALE_X = 0.390f;
+	const float SCALE_Y = 0.432f;*/
 	while (1) {
 		if (mpu.update()) {
 			float heading = mpu.getYaw();
@@ -506,6 +510,18 @@ void MeasureHeading(void* parameter) {
 		}
 
 		vTaskDelay(10 / portTICK_PERIOD_MS);
+
+
+
+		//float xyz[3];
+		//if (mag.readXYZ(xyz)) {
+		//	// Apply soft-iron correction
+		//	xyz[0] *= SCALE_AVG / SCALE_X;
+		//	xyz[1] *= SCALE_AVG / SCALE_Y;
+
+		//	float heading = mag.getHeadingDeg(5.2833); // Adjust declination
+		//}
+		//vTaskDelay(10 / portTICK_PERIOD_MS);
 	}
 }
 
@@ -621,41 +637,50 @@ void initHCSR04() {
 }
 
 void initMPU9250() {
-	//if (!mpu.setup(0x68)) {
-	//	while (1) {
-	//		Serial.println("MPU connection failed!");
-	//		delay(5000);
-	//	}
-	//}
+	if (!mpu.setup(0x68)) {
+		while (1) {
+			Serial.println("MPU connection failed!");
+			delay(5000);
+		}
+	}
 
-	//// AHRS aktivieren (Tilt Compensation)
-	//mpu.ahrs(true);
+	// AHRS aktivieren (Tilt Compensation)
+	mpu.ahrs(true);
 
-	//// Filter auswählen und Iterationen erhöhen
-	//mpu.selectFilter(QuatFilterSel::MADGWICK);
-	//mpu.setFilterIterations(15);
+	// Filter auswählen und Iterationen erhöhen
+	mpu.selectFilter(QuatFilterSel::MADGWICK);
+	mpu.setFilterIterations(15);
 
-	//mpu.setMagneticDeclination(5.2833);
+	mpu.setMagneticDeclination(5.2833);
 
-	//// Kalibrierung der Sensoren
-	////Serial.println("Accel Gyro calibration will start in 5sec.");
-	////Serial.println("Please leave the device still on the flat plane.");
-	////mpu.verbose(true);
-	////delay(5000);
-	////mpu.calibrateAccelGyro();
+	// Kalibrierung der Sensoren
+	//Serial.println("Accel Gyro calibration will start in 5sec.");
+	//Serial.println("Please leave the device still on the flat plane.");
+	//mpu.verbose(true);
+	//delay(5000);
+	//mpu.calibrateAccelGyro();
 
-	////Serial.println("Mag calibration will start in 5sec.");
-	////Serial.println("Please Wave device in a figure eight until done.");
-	////delay(5000);
-	////mpu.calibrateMag();
+	//Serial.println("Mag calibration will start in 5sec.");
+	//Serial.println("Please Wave device in a figure eight until done.");
+	//delay(5000);
+	//mpu.calibrateMag();
 
-	////print_MPU9250_calibration();
-	////mpu.verbose(false);
+	//print_MPU9250_calibration();
+	//mpu.verbose(false);
 
-	//mpu.setAccBias(81.02, -942.55, -652.85);
-	//mpu.setGyroBias(-6.64, 2.20, -0.03);
-	//mpu.setMagBias(575.39, 164.16, -220.18);
-	//mpu.setMagScale(0.74, 1.11, 1.32);
+	mpu.setAccBias(81.02, -942.55, -652.85);
+	mpu.setGyroBias(-6.64, 2.20, -0.03);
+	mpu.setMagBias(575.39, 164.16, -220.18);
+	mpu.setMagScale(0.74, 1.11, 1.32);
+}
+
+void initQMC5883P() {
+	if (!mag.begin()) {
+		Serial.println("Initialization of QMC5883P failed!");
+		while (true);
+	}
+
+	mag.setHardIronOffsets(0.257f, -0.131f);
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -668,6 +693,7 @@ void setup() {
 	initHC12();
 	initHCSR04();
 	initMPU9250();
+	//initQMC5883P();
 
 	//targetCoordsBuffer.push_back({ 48.191787768768535, 16.397051539658563 }); //Kalibrierkoordinate
 

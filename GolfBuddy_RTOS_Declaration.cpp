@@ -101,3 +101,5 @@ MPU9250 mpu;
 int trackerTrackingFlag = 0;
 int MotorPwmLeft = 0;
 int MotorPwmRight = 0;
+
+QMC5883P mag;

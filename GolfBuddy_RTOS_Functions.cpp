@@ -381,8 +381,6 @@ void vCheckSurrounding() {
 
     if (fDistance < 150) {
         bIsBreakingActive = true;
-        iBreakIntensityMotorLeft = EmergencyBreaking;
-        iBreakIntensityMotorRight = EmergencyBreaking;
     }
 }
 

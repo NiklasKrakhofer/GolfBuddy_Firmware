@@ -141,5 +141,7 @@ extern int trackerTrackingFlag;
 extern int MotorPwmLeft;
 extern int MotorPwmRight;
 
+extern QMC5883P mag;
+
 #endif
 
