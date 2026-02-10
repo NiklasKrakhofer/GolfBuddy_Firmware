@@ -1,7 +1,6 @@
 // GolfBuddy_RTOS_Constants.h
-//Autor: Niklas Krakhofer
-//Project: Golf Buddy
-//TODO: -
+// Autor: Niklas Krakhofer
+// Project: Golf Buddy
 
 #ifndef _GOLFBUDDY_RTOS_CONSTANTS_h
 #define _GOLFBUDDY_RTOS_CONSTANTS_h
@@ -59,29 +58,6 @@
 #define REG_STATUS      0xF3
 #define REG_TEMP_MSB    0xFA
 
-// --- GY271 Defines ---
-#define ADDR  0x0d
-#define MAG_ADDRESS 0x0D
-#define XOUT_LSB 0x00
-
-//values for the QMC5883 control register 1
-//operating mode
-#define Mode_Standby    0b00000000
-#define Mode_Continuous 0b00000001
-//Output data rate
-#define ODR_10Hz        0b00000000
-#define ODR_50Hz        0b00000100
-#define ODR_100Hz       0b00001000
-#define ODR_200Hz       0b00001100
-//Measure range
-#define RNG_2G          0b00000000
-#define RNG_8G          0b00010000
-//Over sampling rate
-#define OSR_512         0b00000000
-#define OSR_256         0b01000000
-#define OSR_128         0b10000000
-#define OSR_64          0b11000000
-
 // --- Defines ---
 #define HCSR04VorneLinks 1
 #define HCSR04VorneRechts 2
@@ -93,7 +69,7 @@
 #define AccelerationStepDelay_100 100
 #define AccelerationSteps 10
 #define pulsesPerTurn 48
-#define wheelDiameter 0.175 // in meters
+#define wheelDiameter 0.175 // [m]
 
 #define MotorLeft 0
 #define MotorRight 1
@@ -117,6 +93,8 @@
 #define BUFFER_Coordinates_SIZE 1000
 
 #define RASPI_RES_BUFFER_SIZE 4096  
+
+#define FRAME_TIMEOUT_MS 50
 
 #endif
 

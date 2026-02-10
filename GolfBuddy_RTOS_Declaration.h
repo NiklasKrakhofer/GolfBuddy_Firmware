@@ -1,7 +1,6 @@
 // GolfBuddy_RTOS_Declaration.h
-//Autor: Niklas Krakhofer
-//Project: Golf Buddy
-//TODO: -
+// Autor: Niklas Krakhofer
+// Project: Golf Buddy
 
 #ifndef _GOLFBUDDY_RTOS_DECLARATION_h
 #define _GOLFBUDDY_RTOS_DECLARATION_h
@@ -15,30 +14,21 @@
 #include "MPU9250.h"
 #include <qmc5883p.h>
 
-// Hardware Serials
 extern TinyGPSPlus gps;
+extern MPU9250 mpu;
+extern QMC5883P mag;
+
+// Serial ports
 extern HardwareSerial piSerial;
 extern HardwareSerial gpsSerial;
 extern SoftwareSerial funkSerial;
 
-struct GPSCoordinates {
+struct GPSCoordinates 
+{
     double dGolfTrolley_latitude = 0.0;
     double dGolfTrolley_longitude = 0.0;
 };
 extern GPSCoordinates trolleyCoords;
-
-// Motor encoder
-extern volatile unsigned long vulPulseCountMotorLeft;
-extern volatile unsigned long vulPulseCountMotorRight;
-extern unsigned long ulPulsesMotorLeft;
-extern unsigned long ulPulsesMotorRight;
-extern unsigned long sulLastPulseCountMotorLeft;
-extern unsigned long sulLastPulseCountMotorRight;
-
-// GY271 calibration / offsets
-extern int16_t xOffset;
-extern int16_t yOffset;
-extern int16_t zOffset;
 
 // BME Compensate Variables
 extern uint16_t u16Dig_T1;
@@ -47,18 +37,23 @@ extern int16_t i16Dig_T3;
 extern int32_t i32T_fine;
 
 // Transmit data struct
-struct TransmitDataToPi {
+struct TransmitDataToPi 
+{
     float   iBatteryLevel = 0.0;
     double  dLatitudeGolfBuddy = 0.0;
     double  dLongitudeGolfBuddy = 0.0;
     float   fFacingDirection = 0.0;
+    double  latitudeGolfPlayer = 0.0;
+    double  longitudeGolfPlayer = 0.0;
 };
 extern TransmitDataToPi RaspPI_transmitData;
 
 // GPS buffer
 extern std::vector<GPSCoordinates> targetCoordsBuffer;
 
-// Motor / speed
+// Motor variables
+extern volatile unsigned long vulPulseCountMotorLeft;
+extern volatile unsigned long vulPulseCountMotorRight;
 extern float fMotorLeftRPM;
 extern float fMotorRightRPM;
 extern float fMotorLeftSpeed_ms;
@@ -67,13 +62,8 @@ extern float fMotorLeftSpeed_kmh;
 extern float fMotorRightSpeed_kmh;
 extern float fSollMotorLeftRPM;
 extern float fSollMotorRightRPM;
-
-// PID Motor regulator
-extern unsigned long ulTimestampRegulator;
-extern unsigned long ulLastUpdateMotorRegulator;
-extern float fKpMotorRegulator;
-extern float fKiMotorRegulator;
-extern float fIntegralMotorRegulator;
+extern int MotorPwmLeft;
+extern int MotorPwmRight;
 
 // Base speed
 extern float fBaseSpeedSetting;
@@ -82,43 +72,23 @@ extern float fBaseSpeedSetting;
 extern char cSensorIDArray[3];
 extern float fMeasuredDistances[3];
 
-// PID regulator
-extern float Kp;
-extern float Ki;
-extern float Kd;
-extern float integral;
-extern float lastError;
-extern unsigned long lastTime;
-
 // Other flags / offsets
-extern bool bDogingactive;
 extern int iDrivingDirectionMotorLeft;
 extern int iDrivingDirectionMotorRight;
-extern int16_t x;
-extern int16_t y;
-extern int16_t z;
-
-// Income tracker
-extern String sCurrentIncomeTrackerDataField;
-extern String sIncomeTrackerDataFields[10];
-extern int iIncomeTrackerFieldIndex;
+extern int trackerTrackingFlag;
 
 // Golf trolley control
-extern bool bvDriveAroundonRightwithCheck;
-extern bool bvDriveAroundonLeftwithCheck;
-extern bool bDogeRight;
-extern bool bDodgeLeft;
 extern bool bIsPlayerTrackingActivated;
 extern bool bIsMotorSupportActivated;
 
 extern int iTrackingRPM;
 
+// Break variables
 extern const uint32_t brakeDuration;
 extern bool bIsBreakingActive;
-extern int iBreakIntensityMotorLeft;
-extern int iBreakIntensityMotorRight;
 
-struct HCSR04_average {
+struct HCSR04_average 
+{
     static constexpr int n = 4;
     float data[n] = { 0 };
     int index = 0;
@@ -126,23 +96,19 @@ struct HCSR04_average {
     float summ = 0;
     float average = 0;
 
-    void add(float distance) {
+    void add(float distance) 
+    {
         summ -= data[index];
         data[index] = distance;
         summ += distance;
         index = (index + 1) % n;
-        if (count < n) count++;
+        if (count < n)
+        {
+            count++;
+        }
         average = summ / count;
     }
 };
-
-extern MPU9250 mpu;
-extern int trackerTrackingFlag;
-
-extern int MotorPwmLeft;
-extern int MotorPwmRight;
-
-extern QMC5883P mag;
 
 #endif
 

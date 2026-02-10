@@ -1,30 +1,19 @@
-//GolfBuddy_RTOS_Declaration.cpp
-//Autor: Niklas Krakhofer
-//Project: Golf Buddy
-//TODO: ms umbennen in m/s
+// GolfBuddy_RTOS_Declaration.cpp
+// Autor: Niklas Krakhofer
+// Project: Golf Buddy
 
 #include "GolfBuddy_RTOS_Declaration.h"
 
-// Hardware Serials
 TinyGPSPlus gps;
+MPU9250 mpu;
+QMC5883P mag;
+
+// Serial ports
 HardwareSerial piSerial(1);
 HardwareSerial gpsSerial(2);
 SoftwareSerial funkSerial = SoftwareSerial(HC12TXPin, HC12RXPin);
 
 GPSCoordinates trolleyCoords;
-
-// Motor encoder
-volatile unsigned long vulPulseCountMotorLeft = 0;
-volatile unsigned long vulPulseCountMotorRight = 0;
-unsigned long ulPulsesMotorLeft = 0;
-unsigned long ulPulsesMotorRight = 0;
-unsigned long sulLastPulseCountMotorLeft = 0;
-unsigned long sulLastPulseCountMotorRight = 0;
-
-// Sensor calibration / offsets
-int16_t xOffset = 3213;
-int16_t yOffset = -2415;
-int16_t zOffset = -3795;
 
 // BME / temperature / humidity
 uint16_t u16Dig_T1;
@@ -38,7 +27,9 @@ TransmitDataToPi RaspPI_transmitData;
 // GPS buffer
 std::vector<GPSCoordinates> targetCoordsBuffer;
 
-// Motor / speed
+// Motor variables
+volatile unsigned long vulPulseCountMotorLeft = 0;
+volatile unsigned long vulPulseCountMotorRight = 0;
 float fMotorLeftRPM = 0;
 float fMotorRightRPM = 0;
 float fMotorLeftSpeed_ms = 0;
@@ -47,59 +38,26 @@ float fMotorLeftSpeed_kmh = 0;
 float fMotorRightSpeed_kmh = 0;
 float fSollMotorLeftRPM = 0;
 float fSollMotorRightRPM = 0;
-
-// PID Motor regulator
-unsigned long ulTimestampRegulator = 0;
-unsigned long ulLastUpdateMotorRegulator = 0;
-float fKpMotorRegulator = 0.1;
-float fKiMotorRegulator = 0.02;
-float fIntegralMotorRegulator = 0;
+int MotorPwmLeft = 0;
+int MotorPwmRight = 0;
 
 // Base speed and sensors
 float fBaseSpeedSetting = 200;
 char cSensorIDArray[3] = { HCSR04VorneLinks, HCSR04VorneRechts, HCSR04Hinten };
 float fMeasuredDistances[3];
 
-// PID driving
-float Kp = 1.0;
-float Ki = 0.0;
-float Kd = 0.2;
-float integral = 0;
-float lastError = 0;
-unsigned long lastTime = 0;
-
 // Other flags / offsets
 bool bDogingactive = false;
 int iDrivingDirectionMotorLeft = 0;
 int iDrivingDirectionMotorRight = 0;
-int16_t x;
-int16_t y;
-int16_t z;
-
-// Income tracker
-String sCurrentIncomeTrackerDataField = "";
-String sIncomeTrackerDataFields[10];
-int iIncomeTrackerFieldIndex = 0;
+int trackerTrackingFlag = 0;
 
 // Golf trolley control
-bool bvDriveAroundonRightwithCheck = false;
-bool bvDriveAroundonLeftwithCheck = false;
-bool bDogeRight = false;
-bool bDodgeLeft = false;
 bool bIsPlayerTrackingActivated = false;
 bool bIsMotorSupportActivated = false;
 
 int iTrackingRPM = 75;
 
+// Break variables
 const uint32_t brakeDuration = 3000;
 bool bIsBreakingActive = false;
-int iBreakIntensityMotorLeft;
-int iBreakIntensityMotorRight;
-
-MPU9250 mpu;
-
-int trackerTrackingFlag = 0;
-int MotorPwmLeft = 0;
-int MotorPwmRight = 0;
-
-QMC5883P mag;

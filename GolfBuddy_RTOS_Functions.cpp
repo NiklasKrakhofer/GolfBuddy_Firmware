@@ -1,564 +1,484 @@
-﻿//GolfBuddy_RTOS_Functions.cpp
-//Autor: Niklas Krakhofer
-//Project: Golf Buddy
-//TODO: 
+﻿// GolfBuddy_RTOS_Functions.cpp
+// Autor: Niklas Krakhofer
+// Project: Golf Buddy
 
 #include "GolfBuddy_RTOS_Functions.h"
 
-void IRAM_ATTR vCountPulseMotorLeft() {
-    vulPulseCountMotorLeft++;
+// Counts up vulPulseCountMotorLeft if Motor is spinning
+void IRAM_ATTR vCountPulseMotorLeft()
+{
+	vulPulseCountMotorLeft++;
 }
 
-void IRAM_ATTR vCountPulseMotorRight() {
-    vulPulseCountMotorRight++;
+// Counts up vulPulseCountMotorRight if Motor is spinning
+void IRAM_ATTR vCountPulseMotorRight()
+{
+	vulPulseCountMotorRight++;
 }
 
-void vResetBME280() {
-    Wire.beginTransmission(BME280_ADDR);
-    Wire.write(0xE0);
-    Wire.write(0xB6);
-    Wire.endTransmission();
-    delay(10);
+//@brief: Resets the BME280
+//@param: -
+//@return: -
+void vResetBME280()
+{
+	Wire.beginTransmission(BME280_ADDR);
+	Wire.write(0xE0);
+	Wire.write(0xB6);
+	Wire.endTransmission();
+	delay(10);
 }
 
-uint8_t ui8ReadRegister(uint8_t ui8Reg) {
-    Wire.beginTransmission(BME280_ADDR);
-    Wire.write(ui8Reg);
-    Wire.endTransmission();
-    Wire.requestFrom(BME280_ADDR, 1);
-    return Wire.read();
+//@brief: Support funktion to read out the value of an register of an I2C address.
+//@param: -
+//@return: -
+uint8_t ui8ReadRegister(uint8_t ui8Reg)
+{
+	Wire.beginTransmission(BME280_ADDR);
+	Wire.write(ui8Reg);
+	Wire.endTransmission();
+	Wire.requestFrom(BME280_ADDR, 1);
+	return Wire.read();
 }
 
-void vWriteRegister(uint8_t ui8Adress, uint8_t ui8Reg, uint8_t ui8Value) {
-    Wire.beginTransmission(ui8Adress);
-    Wire.write(ui8Reg);
-    Wire.write(ui8Value);
-    Wire.endTransmission();
+//@brief: Support funktion to change the value of a register based of the I2C address.
+//@param: -
+//@return: -
+void vWriteRegister(uint8_t ui8Adress, uint8_t ui8Reg, uint8_t ui8Value)
+{
+	Wire.beginTransmission(ui8Adress);
+	Wire.write(ui8Reg);
+	Wire.write(ui8Value);
+	Wire.endTransmission();
 }
 
-void vReadCalibrationDataBME280() {
-    Wire.beginTransmission(BME280_ADDR);
-    Wire.write(REG_CALIB00);
-    Wire.endTransmission();
-    Wire.requestFrom(BME280_ADDR, 6);
+//@brief: Reads and sets BME280 calibration values
+//@param: -
+//@return: -
+void vReadCalibrationDataBME280()
+{
+	Wire.beginTransmission(BME280_ADDR);
+	Wire.write(REG_CALIB00);
+	Wire.endTransmission();
+	Wire.requestFrom(BME280_ADDR, 6);
 
-    u16Dig_T1 = (uint16_t)(Wire.read() | (Wire.read() << 8));
-    i16Dig_T2 = (int16_t)(Wire.read() | (Wire.read() << 8));
-    i16Dig_T3 = (int16_t)(Wire.read() | (Wire.read() << 8));
+	u16Dig_T1 = (uint16_t)(Wire.read() | (Wire.read() << 8));
+	i16Dig_T2 = (int16_t)(Wire.read() | (Wire.read() << 8));
+	i16Dig_T3 = (int16_t)(Wire.read() | (Wire.read() << 8));
 }
 
-void softReset() {
-    vWriteRegister(ADDR, 0x0a, 0x80);
-    vWriteRegister(ADDR, 0x0b, 0x01);
-}
-  
-void vSendTransmitdataToPi() {
-    String out =
-        String(RaspPI_transmitData.iBatteryLevel) + ";" +
-        String(RaspPI_transmitData.dLatitudeGolfBuddy, 6) + ";" +
-        String(RaspPI_transmitData.dLongitudeGolfBuddy, 6) + ";" +
-        String(RaspPI_transmitData.fFacingDirection) + ";" +
-        String(trackerTrackingFlag) +
-        "\n";
-    piSerial.write(out.c_str());
-}
+//@brief: Reads the raw temperature from BME280.
+//@param: -
+//@return: raw Temperature
+int32_t i32ReadRawTemperatureBME280()
+{
+	Wire.beginTransmission(BME280_ADDR);
+	Wire.write(REG_TEMP_MSB);
+	Wire.endTransmission();
+	Wire.requestFrom(BME280_ADDR, 3);
 
-int32_t i32ReadRawTemperatureBME280() {
-    Wire.beginTransmission(BME280_ADDR);
-    Wire.write(REG_TEMP_MSB);
-    Wire.endTransmission();
-    Wire.requestFrom(BME280_ADDR, 3);
+	int32_t adc_T = ((uint32_t)Wire.read() << 12);
+	adc_T |= ((uint32_t)Wire.read() << 4);
+	adc_T |= (Wire.read() >> 4);
 
-    int32_t adc_T = ((uint32_t)Wire.read() << 12);
-    adc_T |= ((uint32_t)Wire.read() << 4);
-    adc_T |= (Wire.read() >> 4);
-
-    return adc_T;
+	return adc_T;
 }
 
-float fCompensateTemperatureBME280(int32_t i32Adc_T) {
-    int32_t var1, var2;
-    var1 = ((((i32Adc_T >> 3) - ((int32_t)u16Dig_T1 << 1))) * ((int32_t)i16Dig_T2)) >> 11;
-    var2 = (((((i32Adc_T >> 4) - ((int32_t)u16Dig_T1)) *
-        ((i32Adc_T >> 4) - ((int32_t)u16Dig_T1))) >> 12) *
-        ((int32_t)i16Dig_T3)) >> 14;
-    i32T_fine = var1 + var2;
-    float T = (i32T_fine * 5 + 128) >> 8;
-    return T / 100.0f;
+//@brief: Compensates measured temperature
+//@param: i32Adc_T : measured temperature
+//@return: compensated temperature
+float fCompensateTemperatureBME280(int32_t i32Adc_T)
+{
+	int32_t var1, var2;
+	var1 = ((((i32Adc_T >> 3) - ((int32_t)u16Dig_T1 << 1))) * ((int32_t)i16Dig_T2)) >> 11;
+	var2 = (((((i32Adc_T >> 4) - ((int32_t)u16Dig_T1)) *
+		((i32Adc_T >> 4) - ((int32_t)u16Dig_T1))) >> 12) *
+		((int32_t)i16Dig_T3)) >> 14;
+	i32T_fine = var1 + var2;
+	float T = (i32T_fine * 5 + 128) >> 8;
+	return T / 100.0f;
 }
 
-void vUpdateMeausuredMotorSpeed() {
-    static unsigned long sulLastPulseCountMotorLeft = 0;
-    static unsigned long sulLastPulseCountMotorRight = 0;
-
-    unsigned long now = millis();
-    float deltaTime = (now - ulLastUpdateMotorRegulator) / 1000.0; // Zeit in Sekunden
-    if (deltaTime <= 0) return;
-
-    // Pulsdifferenz seit letzter Messung
-    unsigned long ulPulsesMotorLeft = vulPulseCountMotorLeft - sulLastPulseCountMotorLeft;
-    unsigned long ulPulsesMotorRight = vulPulseCountMotorRight - sulLastPulseCountMotorRight;
-
-    sulLastPulseCountMotorLeft = vulPulseCountMotorLeft;
-    sulLastPulseCountMotorRight = vulPulseCountMotorRight;
-
-    // Umdrehungen pro Sekunde
-    float turnsPerSecondLeft = (float)ulPulsesMotorLeft / pulsesPerTurn / deltaTime;
-    float turnsPerSecondRight = (float)ulPulsesMotorRight / pulsesPerTurn / deltaTime;
-
-    // RPM
-    fMotorLeftRPM = turnsPerSecondLeft * 60.0;
-    fMotorRightRPM = turnsPerSecondRight * 60.0;
-
-    // Geschwindigkeit
-    fMotorLeftSpeed_ms = turnsPerSecondLeft * wheelDiameter * M_PI; // [m/s]
-    fMotorRightSpeed_ms = turnsPerSecondRight * wheelDiameter * M_PI;
-
-    fMotorLeftSpeed_kmh = fMotorLeftSpeed_ms * 3.6; // [km/h]
-    fMotorRightSpeed_kmh = fMotorRightSpeed_ms * 3.6;
-
-    ulLastUpdateMotorRegulator = now;
-}
-
-void vWriteRegGY271(uint8_t ui8Reg, uint8_t ui8Val) {
-    Wire.beginTransmission(QMC_ADDR);
-    Wire.write(ui8Reg);
-    Wire.write(ui8Val);
-    Wire.endTransmission();
-}
-
-void vResetAndInitGY271() {
-    // Soft reset
-    vWriteRegGY271(REG_CTRL2, 0x80);
-    delay(10);
-    vWriteRegGY271(REG_CTRL1, 0x1D);
-    delay(10);
-}
-
-bool bReadRawDataGY271(int16_t& i16RawX, int16_t& i16RawY, int16_t& i16RawZ) {
-    Wire.beginTransmission(QMC_ADDR);
-    Wire.write(REG_DATA);
-    if (Wire.endTransmission(false) != 0) return false; // no ack
-
-    Wire.requestFrom(QMC_ADDR, (uint8_t)6);
-    if (Wire.available() < 6) return false;
-
-    uint8_t xl = Wire.read();
-    uint8_t xh = Wire.read();
-    uint8_t yl = Wire.read();
-    uint8_t yh = Wire.read();
-    uint8_t zl = Wire.read();
-    uint8_t zh = Wire.read();
-
-    // QMC5883L uses LSB then MSB
-    i16RawX = (int16_t)((xh << 8) | xl);
-    i16RawY = (int16_t)((yh << 8) | yl);
-    i16RawZ = (int16_t)((zh << 8) | zl);
-    return true;
-}
-
+//@brief: Calculates the heading of the GolfBuddy based on its coordinate, by calculating the angle between to coordinates.
+//        This is only working, when the GolfBuddy is in motion.
+//@param: -
+//@return: -
 void updateGetHeadingWithGPS()
 {
-    GPSCoordinates oldCoords;
-    double φ1 = oldCoords.dGolfTrolley_latitude * M_PI / 180.0;
-    double φ2 = trolleyCoords.dGolfTrolley_latitude * M_PI / 180.0;
-    double Δλ = (trolleyCoords.dGolfTrolley_longitude - oldCoords.dGolfTrolley_longitude) * M_PI / 180.0;
+	static GPSCoordinates oldCoords;
 
-    double y = sin(Δλ) * cos(φ2);
-    double x = cos(φ1) * sin(φ2) - sin(φ1) * cos(φ2) * cos(Δλ);
+	// Convert latitudes from degrees to radians
+	double phi1 = oldCoords.dGolfTrolley_latitude * M_PI / 180.0;
+	double phi2 = trolleyCoords.dGolfTrolley_latitude * M_PI / 180.0;
 
-    double θ = atan2(y, x);
-    double heading = θ * 180.0 / M_PI;
+	// Longitude difference in radians
+	double deltaLambda = (trolleyCoords.dGolfTrolley_longitude - oldCoords.dGolfTrolley_longitude) * M_PI / 180.0;
 
-    if (heading < 0) heading += 360.0;
-    RaspPI_transmitData.fFacingDirection = heading;
+	// Bearing calculation components
+	double y = sin(deltaLambda) * cos(phi2);
+	double x = cos(phi1) * sin(phi2)
+		- sin(phi1) * cos(phi2) * cos(deltaLambda);
 
-    oldCoords.dGolfTrolley_latitude = trolleyCoords.dGolfTrolley_latitude;
-    oldCoords.dGolfTrolley_longitude = trolleyCoords.dGolfTrolley_longitude;
+	// Convert bearing in degrees
+	double heading = atan2(y, x) * 180.0 / M_PI;
+	if (heading < 0)
+	{
+		heading += 360.0;
+	}
+
+	RaspPI_transmitData.fFacingDirection = heading;
+
+	oldCoords.dGolfTrolley_latitude = trolleyCoords.dGolfTrolley_latitude;
+	oldCoords.dGolfTrolley_longitude = trolleyCoords.dGolfTrolley_longitude;
 }
 
-void vPlayerTracking(const GPSCoordinates& targetCoords, const GPSCoordinates& currentCoords) {
-    vSetDrivingdirectionMotorLeft(DrivingDirectionForwards);
-    vSetDrivingdirectionMotorRight(DrivingDirectionForwards);
-	// Determine tracking speed based on buffer status
- //   if () {
- //       iTrackingRPM = 200; // faster
- //   }
- //   else if () {
-	//	iTrackingRPM = 100; // slower
- //   }
-	//else if () { // TODO: check if this case is possible
- //       iTrackingRPM = 0; // stehen bleiben -> ziel erreicht
- //   }
+//@brief: Moves the GolfBuddy to the targetCoord.
+//@param: targetCoord  : The resulting position of the GolfBuddy
+//        currentCoord : The current coordinate of the GolfBuddy
+//@return: -
+void vPlayerTracking(const GPSCoordinates& targetCoord, const GPSCoordinates& currentCoord)
+{
+	vSetDrivingdirectionMotorLeft(DrivingDirectionForwards);
+	vSetDrivingdirectionMotorRight(DrivingDirectionForwards);
 
-	// Update heading control to face target coordinate
-    vUpdateHeadingControl(RaspPI_transmitData.fFacingDirection, dGetTargetHeading(currentCoords, targetCoords), iTrackingRPM, 0.75);
-    Serial.println(dGetTargetHeading(currentCoords, targetCoords));
-    Serial.println(RaspPI_transmitData.fFacingDirection);
-    Serial.println(fSollMotorLeftRPM);
-    Serial.println(fSollMotorRightRPM);
+	// Calcualte Motors RPM to turn to target coordinate
+	vUpdateHeadingControl(RaspPI_transmitData.fFacingDirection, dGetTargetHeading(currentCoord, targetCoord), iTrackingRPM, 0.75);
+
+	//// DEBUG
+    //Serial.println(dGetTargetHeading(currentCoord, targetCoord));
+	//Serial.println(RaspPI_transmitData.fFacingDirection);
+	//Serial.println(fSollMotorLeftRPM);
+	//Serial.println(fSollMotorRightRPM);
+
 	// Regulate motors to desired RPM
-    vRegulateMotorLeftRPM(fSollMotorLeftRPM);
-    vRegulateMotorRightRPM(fSollMotorRightRPM);
+	vRegulateMotorLeftRPM(fSollMotorLeftRPM);
+	vRegulateMotorRightRPM(fSollMotorRightRPM);
 
-    //analogWrite(MotorLeftPWMPin, MotorPwmRight);
-    //analogWrite(MotorRightPWMPin, MotorPwmLeft);
-   
-	// If within 2 meters, mark coordinate as reached and remove it from buffer
-    if (dCalculateHaversine(currentCoords.dGolfTrolley_latitude, currentCoords.dGolfTrolley_longitude, targetCoords.dGolfTrolley_latitude, targetCoords.dGolfTrolley_longitude) < 4) {
-        if (!targetCoordsBuffer.empty()) {
-            targetCoordsBuffer.erase(targetCoordsBuffer.begin());
-        }
-    }
+	// If GolfBuddy within 4 meters of targetCoord, remove targetCoord from buffer
+	if (dCalculateHaversine(currentCoord.dGolfTrolley_latitude, currentCoord.dGolfTrolley_longitude, targetCoord.dGolfTrolley_latitude, targetCoord.dGolfTrolley_longitude) < 4)
+	{
+		if (!targetCoordsBuffer.empty())
+		{
+			targetCoordsBuffer.erase(targetCoordsBuffer.begin());
+		}
+	}
 }
 
-double dGetTargetHeading(GPSCoordinates from, GPSCoordinates to) {
-    double φ1 = from.dGolfTrolley_latitude * M_PI / 180.0;
-    double φ2 = to.dGolfTrolley_latitude * M_PI / 180.0;
-    double Δλ = (to.dGolfTrolley_longitude - from.dGolfTrolley_longitude) * M_PI / 180.0;
+//@brief: Calculates the angle between to coordinates.
+//@param: from : Coordinate 1
+//        to   : Coordinate 2
+//@return: Angle between to coordinates
+double dGetTargetHeading(GPSCoordinates from, GPSCoordinates to)
+{
+	// Convert latitudes from degrees to radians
+	double phi1 = from.dGolfTrolley_latitude * M_PI / 180.0;
+	double phi2 = to.dGolfTrolley_latitude * M_PI / 180.0;
 
-    double y = sin(Δλ) * cos(φ2);
-    double x = cos(φ1) * sin(φ2) - sin(φ1) * cos(φ2) * cos(Δλ);
+	// Longitude difference in radians
+	double deltaLambda =
+		(to.dGolfTrolley_longitude - from.dGolfTrolley_longitude) * M_PI / 180.0;
 
-    double θ = atan2(y, x);
-    double heading = θ * 180.0 / M_PI;
+	// Bearing calculation components
+	double y = sin(deltaLambda) * cos(phi2);
+	double x = cos(phi1) * sin(phi2)
+		- sin(phi1) * cos(phi2) * cos(deltaLambda);
 
-    if (heading < 0) heading += 360.0;
+	// Bearing in degrees
+	double angle = atan2(y, x) * 180.0 / M_PI;
+	if (angle < 0) angle += 360.0;
 
-    return heading;
+	return angle;
 }
 
-void vUpdateHeadingControl(float fHeading, float fHeadingTarget, int iBaseSpeed, float fTurnSpeedFactor) {
-    unsigned long now = millis();
-    float dt = (now - lastTime) / 1000.0; // Zeit in Sekunden
-    if (dt <= 0) dt = 0.001; // Vermeidung von Division durch 0
-    lastTime = now;
+//@brief: Calculates the RPM of both motors to turn and face the target coordinate. The RPMs are calculated based on the current GolfBuddy heading and the heading from the GolfBuddy to the target
+//        coordinate. The average speed is defined by baseSpeed and the speed of turning is defined by the turnSpeedFactor. The system is regulated with a PID-Regulator.
+//@param: heading         : Current heading of the GolfBuddy
+//        headingTarget   : Angle between GolfBuddy and target coordinate
+//        baseSpeed       : Average RPM of the GolfBuddy
+//        turnFactor : Defines how sharp the GolfBuddy turns. From 0 to 1 0 = no turn
+//                                                                             1 = turning at the same place possible
+//@return: -
+void vUpdateHeadingControl(float heading, float headingTarget, int baseSpeed, float turnFactor)
+{
+	// PID controller gains
+	const float KP = 1.0;
+	const float KI = 0.0;
+	const float KD = 0.2;
 
-    // Fehler berechnen (zwischen -180° und 180°)
-    float error = fHeadingTarget - fHeading;
-    if (error > 180) error -= 360;
-    if (error < -180) error += 360;
+	// PID state variables
+	static float integral = 0;
+	static float lastError = 0;
+	static unsigned long lastTime = 0;
 
-    // Integral- und Differentialanteil
-    integral += error * dt;
-    float derivative = (error - lastError) / dt;
-    lastError = error;
+	// Time step in seconds
+	unsigned long now = millis();
+	float dt = (now - lastTime) / 1000.0;
+	if (dt <= 0) dt = 0.001;
+	lastTime = now;
 
-    // PID-Ausgang
-    float turn = Kp * error + Ki * integral + Kd * derivative;
+	// Heading error normalized to -180..180 degrees
+	float error = headingTarget - heading;
+	if (error > 180)  error -= 360;
+	if (error < -180) error += 360;
 
-    // Begrenzung von turn in Abhängigkeit von baseSpeed
-    float maxTurn = iBaseSpeed * fTurnSpeedFactor;
+	// PID calculations
+	integral += error * dt;
+	float derivative = (error - lastError) / dt;
+	lastError = error;
 
-    if (turn > maxTurn) turn = maxTurn;
-    if (turn < -maxTurn) turn = -maxTurn;
+	// PID output (turn rate)
+	float turn = KP * error + KI * integral + KD * derivative;
 
-    // Motorgeschwindigkeiten berechnen
-    fSollMotorRightRPM = iBaseSpeed - turn;
-    fSollMotorLeftRPM = iBaseSpeed + turn;
+	// Limit turn rate relative to base speed
+	float maxTurn = baseSpeed * turnFactor;
+	if (turn > maxTurn) turn = maxTurn;
+	if (turn < -maxTurn) turn = -maxTurn;
+
+	// Differential motor speed control
+	fSollMotorRightRPM = baseSpeed - turn;
+	fSollMotorLeftRPM = baseSpeed + turn;
 }
 
-double dCalculateHaversine(double dLat1, double dLon1, double dLat2, double dLon2) {
-    const double R = 6371000; // Erdradius in Metern
-    double φ1 = dLat1 * M_PI / 180.0;
-    double φ2 = dLat2 * M_PI / 180.0;
-    double Δφ = (dLat2 - dLat1) * M_PI / 180.0;
-    double Δλ = (dLon2 - dLon1) * M_PI / 180.0;
-    double a = sin(Δφ / 2) * sin(Δφ / 2) + cos(φ1) * cos(φ2) * sin(Δλ / 2) * sin(Δλ / 2);
-    return 2 * R * atan2(sqrt(a), sqrt(1 - a));
+//@brief: Calculates distance between two GPS Coordinates.
+//@param: lat1 : Latitude Coordinate 1 [±ddd.ddddd°]
+//        lon1 : Longitude Coordinate 1 [±ddd.ddddd°]
+//        lat2 : Latitude Coordinate 2 [±ddd.ddddd°]
+//        lon1 : Longitude Coordinate 2 [±ddd.ddddd°]
+//@return: Distance bettween the Coordinates [m]
+double dCalculateHaversine(double lat1, double lon1, double lat2, double lon2)
+{
+	const double R = 6371000; // Earthradius in [m]
+	double phi1 = lat1 * M_PI / 180.0;
+	double phi2 = lat2 * M_PI / 180.0;
+	double deltaPhi = (lat2 - lat1) * M_PI / 180.0;
+	double deltaLambda = (lon2 - lon1) * M_PI / 180.0;
+	double a = sin(deltaPhi / 2) * sin(deltaPhi / 2) + cos(phi1) * cos(phi2) * sin(deltaLambda / 2) * sin(deltaLambda / 2);
+	return 2 * R * atan2(sqrt(a), sqrt(1 - a));
 }
 
-void vRegulateMotorLeftRPM(int iSollRPM) {
-    float pwmValue = fPIRegulate(iSollRPM, fMotorLeftRPM);
-    analogWrite(MotorLeftPWMPin, pwmValue);
+//@brief: Regulates the RPM of the left motor to sollRPM.
+//@param: sollRPM : The to be reached RPM value of the left motor.
+//@return: -
+void vRegulateMotorLeftRPM(int sollRPM)
+{
+	analogWrite(MotorLeftPWMPin, fPIRegulate(sollRPM, fMotorLeftRPM));
 }
 
-void vRegulateMotorRightRPM(int iSollRPM) {
-    float pwmValue = fPIRegulate(iSollRPM, fMotorRightRPM);
-    analogWrite(MotorRightPWMPin, pwmValue);
+//@brief: Regulates the RPM of the right motor to sollRPM.
+//@param: sollRPM : The to be reached RPM value of the right motor.
+//@return: -
+void vRegulateMotorRightRPM(int sollRPM)
+{
+	analogWrite(MotorRightPWMPin, fPIRegulate(sollRPM, fMotorRightRPM));
 }
 
-float fPIRegulate(float fSetpoint, float fAactual) {
-    unsigned long now = millis();
-    float dt = (now - ulTimestampRegulator) / 1000.0;  // Sekunden
-    if (dt <= 0.0f) dt = 0.001f;  // Schutz
+//@brief: Returns an 8-Bit PWM value based on setpoint and actual with an PI-Regulator.
+//@param: setpoint : The to be reached value
+//        actual   : The current value
+//@return: 8-Bit PWM value
+float fPIRegulate(float setpoint, float actual)
+{
+	// PI controller gains
+	const float KP = 0.1;
+	const float KI = 0.02;
 
-    ulTimestampRegulator = now;
+	// PI state variables
+	static float integral = 0;
+	static unsigned long lastUpdate = 0;
 
-    // Optional: Messwert glätten (einfaches PT1)
-    static float actual_filtered = 0;
-    const float tau = 0.05; // Filterzeitkonstante in s (anpassen)
-    actual_filtered += (fAactual - actual_filtered) * (dt / (tau + dt));
+	// Time step in seconds
+	unsigned long now = millis();
+	float dt = (now - lastUpdate) / 1000.0;
+	if (dt <= 0.0f) dt = 0.001f;
+	lastUpdate = now;
 
-    float error = fSetpoint - actual_filtered;
+	// Low-pass filter for measured value
+	static float actual_filtered = 0;
+	const float tau = 0.05;
+	actual_filtered += (actual - actual_filtered) * (dt / (tau + dt));
 
-    // Integral (Anti-Windup: Begrenzung)
-    fIntegralMotorRegulator += error * dt;
-    const float I_MAX = 1000.0; // anpassen (sinnvoller Bereich)
-    if (fIntegralMotorRegulator > I_MAX) fIntegralMotorRegulator = I_MAX;
-    if (fIntegralMotorRegulator < -I_MAX) fIntegralMotorRegulator = -I_MAX;
+	// Control error
+	float error = setpoint - actual_filtered;
 
-    float output = fKpMotorRegulator * error + fKiMotorRegulator * fIntegralMotorRegulator;
+	// Integral term with anti-windup
+	integral += error * dt;
+	const float I_MAX = 1000.0;
+	if (integral > I_MAX) integral = I_MAX;
+	if (integral < -I_MAX) integral = -I_MAX;
 
-    // Falls du Richtung brauchst: begrenze symmetrisch, sonst 0..255
-    const float OUT_MAX = 255.0;
-    if (output > OUT_MAX) output = OUT_MAX;
-    if (output < 0.0)    output = 0.0;
+	// PI controller output
+	float output = KP * error + KI * integral;
 
-    return output;
+	// Output saturation
+	const float OUT_MAX = 255.0;
+	if (output > OUT_MAX) output = OUT_MAX;
+	if (output < 0.0f)    output = 0.0f;
+
+	return output;
 }
 
-void vMotorSupport() {
-    vSetDrivingdirectionMotorLeft(DrivingDirectionBackwards);
-    vSetDrivingdirectionMotorRight(DrivingDirectionBackwards);
-    if (digitalRead(TouchSensorLeft) || digitalRead(TouchSensorRight)) {
-        analogWrite(MotorLeftPWMPin, 50);
-        analogWrite(MotorRightPWMPin, 50);
-    }
-    else {
-        vParking();
-    }
-}
-
-void vParking() {
-    analogWrite(MotorLeftPWMPin, 0);
-    analogWrite(MotorRightPWMPin, 0);
-    if (fMotorLeftRPM < RPM_10 && fMotorRightRPM < RPM_10) {
-        vBreakMotorLeft(255); //???Falsches Bremesn
-        vBreakMotorRight(255); //???Falsches Bremesn
-    }
-}
-
-void vBreakMotorLeft(int iBreakInansity) {
-    analogWrite(MotorLeftBreakPin, iBreakInansity);
-}
-
-void vBreakMotorRight(int iBreakInansity) {
-    analogWrite(MotorRightBreakPin, iBreakInansity);
-}
-
-void vCheckSurrounding() {
-    #ifdef ObsticaleDetectionWithDogeing
-    for (int i = 0; i <= 1; i++) {
-        float fDistance = fGetMessuredDistanceofHCSR04(cSensorIDArray[i]);
-        if (!bDogingactive) {
-            if (fDistance < 75) {
-                bDogingactive = true;
-                bIsBreakingActive = true;
-                iBreakIntensityMotorLeft = EmergencyBreaking;
-                iBreakIntensityMotorRight = EmergencyBreaking;
-                vDodge();
-                return true;
-            }
-            else if (fDistance < 250) {
-                bDogingactive = true;
-                vDodge();
-                return true;
-            }
-        }
-        else if (bDogingactive) {
-            if (fDistance > 75) {
-                bIsBreakingActive = true;
-                iBreakIntensityMotorLeft = EmergencyBreaking;
-                iBreakIntensityMotorRight = EmergencyBreaking;
-
-                return true;
-            }
-        }
-    }
-    if (fGetMessuredDistanceofHCSR04(cSensorIDArray[3]) < 75) {
-        bIsBreakingActive = true;
-        iBreakIntensityMotorLeft = EmergencyBreaking;
-        iBreakIntensityMotorRight = EmergencyBreaking;
-    }
-    return false;
-    #endif
-
-    static unsigned int sensorIndex = 0;
-    sensorIndex = (sensorIndex + 1) % 3;
-
-    float fDistance = fGetMessuredDistanceofHCSR04(cSensorIDArray[sensorIndex]);
-
-    if (fDistance < 150) {
-        bIsBreakingActive = true;
-    }
+//@brief: Parking sets the motorrpm to 0 and breaks both motors. Should be called if GolfBuddy is not moving.
+//@param: -
+//@return: -
+void vParking()
+{
+	analogWrite(MotorLeftPWMPin, 0);
+	analogWrite(MotorRightPWMPin, 0);
+	// TODO: Add breaking
 }
 
 HCSR04_average HCSR04_0;
 HCSR04_average HCSR04_1;
 HCSR04_average HCSR04_2;
 
-float fGetMessuredDistanceofHCSR04(int cSensorID) {
-    int iActiveHCSR04TrigPin;
-    int iActiveHCSR04EchoPin;
-    HCSR04_average* activeSensor = nullptr;
-
-    if (cSensorID == HCSR04VorneLinks) {
-        iActiveHCSR04TrigPin = HCSR04TrigPin0;
-        iActiveHCSR04EchoPin = HCSR04EchoPin0;
-        activeSensor = &HCSR04_0;
-    }
-
-    else if (cSensorID == HCSR04VorneRechts) {
-        iActiveHCSR04TrigPin = HCSR04TrigPin1;
-        iActiveHCSR04EchoPin = HCSR04EchoPin1;
-        activeSensor = &HCSR04_1;
-    }
-
-    else if (cSensorID == HCSR04Hinten) {
-        iActiveHCSR04TrigPin = HCSR04TrigPin2;
-        iActiveHCSR04EchoPin = HCSR04EchoPin2;
-        activeSensor = &HCSR04_2;
-    }
-
-    digitalWrite(iActiveHCSR04TrigPin, LOW);
-    delayMicroseconds(20);
-    digitalWrite(iActiveHCSR04TrigPin, HIGH);
-    delayMicroseconds(100);
-    digitalWrite(iActiveHCSR04TrigPin, LOW);
-
-    float duration = pulseIn(iActiveHCSR04EchoPin, HIGH);
-    float distance = duration * 0.0343 / 2;
-
-    activeSensor->add(distance);
-     
-    return activeSensor->average;
-}
-
-#ifdef ObsticaleDetectionWithDogeing
-void vDodge() {
-    for (int i = 0; i <= 2; i++) {
-        fMeasuredDistances[i] = fGetMessuredDistanceofHCSR04(cSensorIDArray[i]);
-    }
-    if (iDrivingDirectionMotorLeft == DrivingDirectionForwards || iDrivingDirectionMotorRight == DrivingDirectionForwards) {
-        if (fMeasuredDistances[HCSR04VorneLinks] < 100 && fMeasuredDistances[HCSR04VorneRechts] < 100) {
-            Serial.println("bvDriveAroundonRightwithCheck");
-            bvDriveAroundonRightwithCheck = true;
-        }
-        else if (fMeasuredDistances[HCSR04VorneLinks] < 100 && fMeasuredDistances[HCSR04VorneRechts] > 100) {
-            Serial.println("bvDriveAroundonLeftwithCheck");
-            bvDriveAroundonLeftwithCheck = true;
-        }
-        else if (fMeasuredDistances[HCSR04VorneLinks] > 100 && fMeasuredDistances[HCSR04VorneRechts] < 100) {
-            Serial.println("bvDriveAroundonRightwithCheck");
-            bvDriveAroundonRightwithCheck = true;
-        }
-        // wenn das obstacle weiter weg ist nur vorbeifahren und nicht extra zurückschieben
-        else if (fMeasuredDistances[HCSR04VorneLinks] < 200 && fMeasuredDistances[HCSR04VorneRechts] < 200) {
-            Serial.println("Dodge right");
-            bDogeRight = true;
-
-        }
-        else if (fMeasuredDistances[HCSR04VorneLinks] < 200 && fMeasuredDistances[HCSR04VorneRechts] > 200) {
-            Serial.println("Dodge left");
-            bDodgeLeft = true;
-
-        }
-        else if (fMeasuredDistances[HCSR04VorneLinks] > 200 && fMeasuredDistances[HCSR04VorneRechts] < 200) {
-            Serial.println("Dodge right");
-            bDogeRight = true;
-
-        }
-    }
-}
-#endif // ObsticaleDetectionWithDogeing
-
-void vSetDrivingdirectionMotorLeft(int iDirection) {
-    if (iDirection == DrivingDirectionForwards) {
-        iDrivingDirectionMotorLeft = DrivingDirectionForwards;
-        digitalWrite(MotorLeftDrivingDirectionPin, HIGH);
-    }
-    else if (iDirection == DrivingDirectionBackwards) {
-        iDrivingDirectionMotorLeft = DrivingDirectionBackwards;
-        digitalWrite(MotorLeftDrivingDirectionPin, LOW);
-    }
-}
-
-void vSetDrivingdirectionMotorRight(int iDirection) {
-    if (iDirection == DrivingDirectionForwards) {
-        iDrivingDirectionMotorRight = DrivingDirectionForwards;
-        digitalWrite(MotorRightDrivingDirectionPin, LOW);
-    }
-    else if (iDirection == DrivingDirectionBackwards) {
-        iDrivingDirectionMotorRight = DrivingDirectionBackwards;
-        digitalWrite(MotorRightDrivingDirectionPin, HIGH);
-    }
-}
-
-void vMakeASetBack() {
-    vSetDrivingdirectionMotorLeft(DrivingDirectionBackwards);
-    vSetDrivingdirectionMotorRight(DrivingDirectionBackwards);
-
-    vRegulateMotorLeftRPM(60);
-    vRegulateMotorRightRPM(60);
-}
-
-void vMakeASetForward() {
-    vSetDrivingdirectionMotorLeft(DrivingDirectionForwards);
-    vSetDrivingdirectionMotorRight(DrivingDirectionForwards);
-
-    vRegulateMotorLeftRPM(60);
-    vRegulateMotorRightRPM(60);
-}
-
-void vSpinToHeading(float fTargetHeading) {
-    //vUpdateHeadingControl(dGetHeading(), fTargetHeading, 100, 2);
-
-    vRegulateMotorLeftRPM(fSollMotorLeftRPM);
-    vRegulateMotorRightRPM(fSollMotorRightRPM);
-}
-
-void vAccelarate(int iItensity) {
-
-}
-
-void print_MPU9250_calibration() {
-    Serial.println("< calibration parameters >");
-    Serial.println("accel bias [g]: ");
-    Serial.print(mpu.getAccBiasX() * 1000.f / (float)MPU9250::CALIB_ACCEL_SENSITIVITY);
-    Serial.print(", ");
-    Serial.print(mpu.getAccBiasY() * 1000.f / (float)MPU9250::CALIB_ACCEL_SENSITIVITY);
-    Serial.print(", ");
-    Serial.print(mpu.getAccBiasZ() * 1000.f / (float)MPU9250::CALIB_ACCEL_SENSITIVITY);
-    Serial.println();
-    Serial.println("gyro bias [deg/s]: ");
-    Serial.print(mpu.getGyroBiasX() / (float)MPU9250::CALIB_GYRO_SENSITIVITY);
-    Serial.print(", ");
-    Serial.print(mpu.getGyroBiasY() / (float)MPU9250::CALIB_GYRO_SENSITIVITY);
-    Serial.print(", ");
-    Serial.print(mpu.getGyroBiasZ() / (float)MPU9250::CALIB_GYRO_SENSITIVITY);
-    Serial.println();
-    Serial.println("mag bias [mG]: ");
-    Serial.print(mpu.getMagBiasX());
-    Serial.print(", ");
-    Serial.print(mpu.getMagBiasY());
-    Serial.print(", ");
-    Serial.print(mpu.getMagBiasZ());
-    Serial.println();
-    Serial.println("mag scale []: ");
-    Serial.print(mpu.getMagScaleX());
-    Serial.print(", ");
-    Serial.print(mpu.getMagScaleY());
-    Serial.print(", ");
-    Serial.print(mpu.getMagScaleZ());
-    Serial.println();
-}
-
-float mapFloat(float x, float in_min, float in_max,
-    float out_min, float out_max)
+//@brief: Returns average measured distance of an HCSR04
+//@param: sensorID : ID of the to be measured sensor 
+//                   0 -> HCSR04Hinten
+//                   1 -> HCSR04VorneLinks
+//                   2 -> HCSR04VorneRechts
+//@return: The average measured distance of an HCSR04
+float fGetMessuredDistanceofHCSR04(int sensorID)
 {
-    return (x - in_min) * (out_max - out_min) /
-        (in_max - in_min) + out_min;
+	int iActiveHCSR04TrigPin;
+	int iActiveHCSR04EchoPin;
+	HCSR04_average* activeSensor = nullptr;
+
+	// Determine the sensor to be measured
+	if (sensorID == HCSR04VorneLinks)
+	{
+		iActiveHCSR04TrigPin = HCSR04TrigPin0;
+		iActiveHCSR04EchoPin = HCSR04EchoPin0;
+		activeSensor = &HCSR04_0;
+	}
+	else if (sensorID == HCSR04VorneRechts)
+	{
+		iActiveHCSR04TrigPin = HCSR04TrigPin1;
+		iActiveHCSR04EchoPin = HCSR04EchoPin1;
+		activeSensor = &HCSR04_1;
+	}
+	else if (sensorID == HCSR04Hinten)
+	{
+		iActiveHCSR04TrigPin = HCSR04TrigPin2;
+		iActiveHCSR04EchoPin = HCSR04EchoPin2;
+		activeSensor = &HCSR04_2;
+	}
+
+	// Start measure
+	digitalWrite(iActiveHCSR04TrigPin, LOW);
+	delayMicroseconds(20);
+	digitalWrite(iActiveHCSR04TrigPin, HIGH);
+	delayMicroseconds(100);
+	digitalWrite(iActiveHCSR04TrigPin, LOW);
+	// Await positive flank
+	float duration = pulseIn(iActiveHCSR04EchoPin, HIGH);
+	float distance = duration * 0.0343 / 2; // Calculate the distance based on ultrasonic travel time
+
+	activeSensor->add(distance); // Add measured distance to sensor array
+
+	return activeSensor->average; // Return average measured distance
 }
 
-uint32_t crc24q(const uint8_t* data, uint16_t len) {
-    uint32_t crc = 0;
-    for (uint16_t i = 0; i < len; i++) {
-        crc ^= ((uint32_t)data[i]) << 16;
-        for (uint8_t j = 0; j < 8; j++) {
-            crc <<= 1;
-            if (crc & 0x1000000) crc ^= 0x1864CFB;
-        }
-    }
-    return crc & 0xFFFFFF;
+//@brief: Changes the drivingdirection of the left motor
+//@param: direction : 0 -> DrivingDirectionForwards
+//                    1 -> DrivingDirectionBackwards
+//@return: -
+void vSetDrivingdirectionMotorLeft(int iDirection)
+{
+	if (iDirection == DrivingDirectionForwards)
+	{
+		iDrivingDirectionMotorLeft = DrivingDirectionForwards;
+		digitalWrite(MotorLeftDrivingDirectionPin, HIGH);
+	}
+	else if (iDirection == DrivingDirectionBackwards)
+	{
+		iDrivingDirectionMotorLeft = DrivingDirectionBackwards;
+		digitalWrite(MotorLeftDrivingDirectionPin, LOW);
+	}
+}
+
+//@brief: Changes the drivingdirection of the right motor
+//@param: direction : 0 -> DrivingDirectionForwards
+//                    1 -> DrivingDirectionBackwards
+//@return: -
+void vSetDrivingdirectionMotorRight(int direction)
+{
+	if (direction == DrivingDirectionForwards)
+	{
+		iDrivingDirectionMotorRight = DrivingDirectionForwards;
+		digitalWrite(MotorRightDrivingDirectionPin, LOW);
+	}
+	else if (direction == DrivingDirectionBackwards)
+	{
+		iDrivingDirectionMotorRight = DrivingDirectionBackwards;
+		digitalWrite(MotorRightDrivingDirectionPin, HIGH);
+	}
+}
+
+//@brief: Prints out calibration values after MPU9250 calibration for calibration.
+//@param: -
+//@return: -
+void print_MPU9250_calibration()
+{
+	Serial.println("< calibration parameters >");
+	Serial.println("accel bias [g]: ");
+	Serial.print(mpu.getAccBiasX() * 1000.f / (float)MPU9250::CALIB_ACCEL_SENSITIVITY);
+	Serial.print(", ");
+	Serial.print(mpu.getAccBiasY() * 1000.f / (float)MPU9250::CALIB_ACCEL_SENSITIVITY);
+	Serial.print(", ");
+	Serial.print(mpu.getAccBiasZ() * 1000.f / (float)MPU9250::CALIB_ACCEL_SENSITIVITY);
+	Serial.println();
+	Serial.println("gyro bias [deg/s]: ");
+	Serial.print(mpu.getGyroBiasX() / (float)MPU9250::CALIB_GYRO_SENSITIVITY);
+	Serial.print(", ");
+	Serial.print(mpu.getGyroBiasY() / (float)MPU9250::CALIB_GYRO_SENSITIVITY);
+	Serial.print(", ");
+	Serial.print(mpu.getGyroBiasZ() / (float)MPU9250::CALIB_GYRO_SENSITIVITY);
+	Serial.println();
+	Serial.println("mag bias [mG]: ");
+	Serial.print(mpu.getMagBiasX());
+	Serial.print(", ");
+	Serial.print(mpu.getMagBiasY());
+	Serial.print(", ");
+	Serial.print(mpu.getMagBiasZ());
+	Serial.println();
+	Serial.println("mag scale []: ");
+	Serial.print(mpu.getMagScaleX());
+	Serial.print(", ");
+	Serial.print(mpu.getMagScaleY());
+	Serial.print(", ");
+	Serial.print(mpu.getMagScaleZ());
+	Serial.println();
+}
+
+//@brief: Performs linearization of a value with float
+//@param: x       : the value to be linearized (input)
+//        in_min  : input minimum
+//        in_max  : input maximum
+//        out_min : output minimum
+//        out_max : output maximum
+//@return: linearized value type float
+float mapFloat(float x, float in_min, float in_max, float out_min, float out_max)
+{
+	return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
+
+//@brief: Calculates rtcm crc
+//@param: data : recieved rtcm frame
+//        len  : length of the recieved rtcm frame
+//@return: calculated crc
+uint32_t crc24q(const uint8_t* data, uint16_t len)
+{
+	uint32_t crc = 0;
+	for (uint16_t i = 0; i < len; i++)
+	{
+		crc ^= ((uint32_t)data[i]) << 16;
+		for (uint8_t j = 0; j < 8; j++)
+		{
+			crc <<= 1;
+			if (crc & 0x1000000)
+			{
+				crc ^= 0x1864CFB;
+			}
+		}
+	}
+	return crc & 0xFFFFFF;
 }

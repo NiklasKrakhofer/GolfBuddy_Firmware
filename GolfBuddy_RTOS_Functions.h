@@ -1,7 +1,6 @@
 // GolfBuddy_RTOS_Functions.h
-//Autor: Niklas Krakhofer
-//Project: Golf Buddy
-//TODO: 
+// Autor: Niklas Krakhofer
+// Project: Golf Buddy
 
 #ifndef _GOLFBUDDY_RTOS_FUNCTIONS_h
 #define _GOLFBUDDY_RTOS_FUNCTIONS_h
@@ -18,14 +17,8 @@ void vResetBME280();
 uint8_t ui8ReadRegister(uint8_t ui8Reg);
 void vWriteRegister(uint8_t ui8Adress, uint8_t ui8Reg, uint8_t ui8Value);
 void vReadCalibrationDataBME280();
-void softReset(); //
-void vSendTransmitdataToPi();
 int32_t i32ReadRawTemperatureBME280();
 float fCompensateTemperatureBME280(int32_t i32Adc_T);
-void vUpdateMeausuredMotorSpeed();
-void vWriteRegGY271(uint8_t ui8Reg, uint8_t ui8Value);
-void vResetAndInitGY271();
-bool bReadRawDataGY271(int16_t& i16RawX, int16_t& i16RawY, int16_t& i16RawZ);
 void updateGetHeadingWithGPS();
 void vPlayerTracking(const GPSCoordinates& targetCoords, const GPSCoordinates& currentCoords);
 double dGetTargetHeading(GPSCoordinates from, GPSCoordinates to);
@@ -34,19 +27,10 @@ double dCalculateHaversine(double dLat1, double dLon1, double dLat2, double dLon
 void vRegulateMotorLeftRPM(int iSollRPM);
 void vRegulateMotorRightRPM(int iSollRPM);
 float fPIRegulate(float fSetpoint, float fActual);
-void vMotorSupport();
 void vParking();
-void vBreakMotorLeft(int iBreakIntensity);
-void vBreakMotorRight(int iBreakIntensity);
-void vCheckSurrounding();
 float fGetMessuredDistanceofHCSR04(int cSensorID);
-void vDodge();
 void vSetDrivingdirectionMotorLeft(int iDirection);
 void vSetDrivingdirectionMotorRight(int iDirection);
-void vMakeASetBack();
-void vMakeASetForward();
-void vSpinToHeading(float fTargetHeading);
-void vAccelarate(int iIntensity);
 void print_MPU9250_calibration();
 float mapFloat(float x, float in_min, float in_max, float out_min, float out_max);
 uint32_t crc24q(const uint8_t* data, uint16_t len);
