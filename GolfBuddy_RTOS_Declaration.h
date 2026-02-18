@@ -45,6 +45,7 @@ struct TransmitDataToPi
     float   fFacingDirection = 0.0;
     double  latitudeGolfPlayer = 0.0;
     double  longitudeGolfPlayer = 0.0;
+    float   swingSpeed = 0.0;
 };
 extern TransmitDataToPi RaspPI_transmitData;
 

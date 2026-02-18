@@ -144,14 +144,14 @@ void vPlayerTracking(const GPSCoordinates& targetCoord, const GPSCoordinates& cu
 	vUpdateHeadingControl(RaspPI_transmitData.fFacingDirection, dGetTargetHeading(currentCoord, targetCoord), iTrackingRPM, 0.75);
 
 	//// DEBUG
-    //Serial.println(dGetTargetHeading(currentCoord, targetCoord));
-	//Serial.println(RaspPI_transmitData.fFacingDirection);
-	//Serial.println(fSollMotorLeftRPM);
-	//Serial.println(fSollMotorRightRPM);
+    Serial.println(dGetTargetHeading(currentCoord, targetCoord));
+	Serial.println(RaspPI_transmitData.fFacingDirection);
+	Serial.println(fSollMotorLeftRPM);
+	Serial.println(fSollMotorRightRPM);
 
 	// Regulate motors to desired RPM
 	vRegulateMotorLeftRPM(fSollMotorLeftRPM);
-	vRegulateMotorRightRPM(fSollMotorRightRPM);
+	vRegulateMotorRightRPM(fSollMotorRightRPM + 15);
 
 	// If GolfBuddy within 4 meters of targetCoord, remove targetCoord from buffer
 	if (dCalculateHaversine(currentCoord.dGolfTrolley_latitude, currentCoord.dGolfTrolley_longitude, targetCoord.dGolfTrolley_latitude, targetCoord.dGolfTrolley_longitude) < 4)
@@ -345,8 +345,8 @@ float fGetMessuredDistanceofHCSR04(int sensorID)
 	// Determine the sensor to be measured
 	if (sensorID == HCSR04VorneLinks)
 	{
-		iActiveHCSR04TrigPin = HCSR04TrigPin0;
-		iActiveHCSR04EchoPin = HCSR04EchoPin0;
+		iActiveHCSR04TrigPin = HCSR04TrigPin2;
+		iActiveHCSR04EchoPin = HCSR04EchoPin2;
 		activeSensor = &HCSR04_0;
 	}
 	else if (sensorID == HCSR04VorneRechts)
@@ -357,8 +357,8 @@ float fGetMessuredDistanceofHCSR04(int sensorID)
 	}
 	else if (sensorID == HCSR04Hinten)
 	{
-		iActiveHCSR04TrigPin = HCSR04TrigPin2;
-		iActiveHCSR04EchoPin = HCSR04EchoPin2;
+		iActiveHCSR04TrigPin = HCSR04TrigPin0;
+		iActiveHCSR04EchoPin = HCSR04EchoPin0;
 		activeSensor = &HCSR04_2;
 	}
 
@@ -481,4 +481,41 @@ uint32_t crc24q(const uint8_t* data, uint16_t len)
 		}
 	}
 	return crc & 0xFFFFFF;
+}
+
+// wGps + wMpu + wQmc sollte = 1.0 sein
+// Beispiel: 0.2f, 0.4f, 0.4f
+
+float fuseHeading3(float gpsDeg, float mpuDeg, float qmcDeg, float wGps, float wMpu, float wQmc) {
+
+	// Optional: Normierung falls Summe ≠ 1
+	float sum = wGps + wMpu + wQmc;
+	if (sum <= 0.0f) return gpsDeg;  // Fallback
+	wGps /= sum;
+	wMpu /= sum;
+	wQmc /= sum;
+
+	// In Radiant
+	float gpsRad = radians(gpsDeg);
+	float mpuRad = radians(mpuDeg);
+	float qmcRad = radians(qmcDeg);
+
+	// Gewichtete Vektoraddition
+	float x =
+		wGps * cos(gpsRad) +
+		wMpu * cos(mpuRad) +
+		wQmc * cos(qmcRad);
+
+	float y =
+		wGps * sin(gpsRad) +
+		wMpu * sin(mpuRad) +
+		wQmc * sin(qmcRad);
+
+	// Rückrechnung in Winkel
+	float fusedRad = atan2(y, x);
+	float fusedDeg = degrees(fusedRad);
+
+	if (fusedDeg < 0) fusedDeg += 360.0f;
+
+	return fusedDeg;  // 0–360°, Nord = 0
 }

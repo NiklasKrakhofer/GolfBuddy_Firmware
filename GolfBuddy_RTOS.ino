@@ -241,7 +241,8 @@ void TransmittDataToRaspPI(void* pvParameters)
 			String(RaspPI_transmitData.fFacingDirection) + ";" +
 			String(trackerTrackingFlag) + ";" +
 			String(RaspPI_transmitData.latitudeGolfPlayer, 6) + ";" +
-			String(RaspPI_transmitData.longitudeGolfPlayer, 6) +
+			String(RaspPI_transmitData.longitudeGolfPlayer, 6) + ";" +
+			String(RaspPI_transmitData.swingSpeed) +
 			"\n";
 
 		piSerial.write(out.c_str());
@@ -264,8 +265,8 @@ void ReadGPSData(void* pvParameters)
 			trolleyCoords.dGolfTrolley_latitude = gps.location.lat();
 			trolleyCoords.dGolfTrolley_longitude = gps.location.lng();
 
-			//Serial.println(trolleyCoords.dGolfTrolley_latitude, 6);
-			//Serial.println(trolleyCoords.dGolfTrolley_longitude, 6);
+			Serial.println(trolleyCoords.dGolfTrolley_latitude, 6);
+			Serial.println(trolleyCoords.dGolfTrolley_longitude, 6);
 
 			RaspPI_transmitData.dLatitudeGolfBuddy = trolleyCoords.dGolfTrolley_latitude;
 			RaspPI_transmitData.dLongitudeGolfBuddy = trolleyCoords.dGolfTrolley_longitude;
@@ -390,7 +391,7 @@ void MotorSupport(void* pvParameter)
 		{
 			vSetDrivingdirectionMotorLeft(DrivingDirectionBackwards);
 			vSetDrivingdirectionMotorRight(DrivingDirectionBackwards);
-			// TODO: Change motorcontroll back to regulation of its working correctly.
+
 			if (digitalRead(TouchSensorLeft) || digitalRead(TouchSensorRight))
 			{
 				//// Accelartes the motors to a certain pwm.
@@ -404,8 +405,8 @@ void MotorSupport(void* pvParameter)
 
 				//analogWrite(MotorLeftPWMPin, motorSupportPWM);
 				//analogWrite(MotorRightPWMPin, motorSupportPWM);
-				vRegulateMotorLeftRPM(120);
-				vRegulateMotorRightRPM(120);
+				vRegulateMotorLeftRPM(200);
+				vRegulateMotorRightRPM(218);
 			}
 			else
 			{
@@ -430,19 +431,20 @@ void CheckSurrounding(void* pvParameter)
 {
 	while (1)
 	{
-		/*if (!bIsMotorSupportActivated)
-		{
-			static unsigned int sensorIndex = 0;
-			sensorIndex = (sensorIndex + 1) % 3;
+		//if (!bIsMotorSupportActivated)
+		//{
+		//	static unsigned int sensorIndex = 0;
+		//	sensorIndex = (sensorIndex + 1) % 2;
+		//	
+		//	float fDistance = fGetMessuredDistanceofHCSR04(cSensorIDArray[sensorIndex]);
+		//	Serial.println(fDistance);
 
-			float fDistance = fGetMessuredDistanceofHCSR04(cSensorIDArray[sensorIndex]);
-
-			if (fDistance < 150)
-			{
-				bIsBreakingActive = true;
-			}
-		}*/
-		vTaskDelay(100 / portTICK_PERIOD_MS);
+		//	if (fDistance < 200)
+		//	{
+		//		bIsBreakingActive = true;
+		//	}
+		//}
+		vTaskDelay(10 / portTICK_PERIOD_MS);
 	}
 }
 
@@ -490,6 +492,8 @@ void ReceiveDataFromTracker(void* pvParameter)
 					trackerTrackingFlag = false;
 				}
 
+				RaspPI_transmitData.swingSpeed = sIncomeTrackerDataFields[3].toFloat();
+
 				if (millis() - lastUpdate >= interval)
 				{
 					lastUpdate = millis();
@@ -536,8 +540,8 @@ void BreakMotors(void* parameter)
 			digitalWrite(MotorLeftBreakPin, LOW);
 			digitalWrite(MotorRightBreakPin, LOW);
 
-			// Only stops breaking, if brakeDuration is over and no obsticle is in the way.
-			if (millis() - startTime > brakeDuration && fGetMessuredDistanceofHCSR04(cSensorIDArray[0]) > 150 && fGetMessuredDistanceofHCSR04(cSensorIDArray[1]) > 150 && fGetMessuredDistanceofHCSR04(cSensorIDArray[2]) > 150)
+			// Stops the breaking after brakeDuration
+			if (millis() - startTime > brakeDuration)
 			{
 				bIsBreakingActive = false;
 				brakeInProgress = false;
@@ -552,59 +556,61 @@ void BreakMotors(void* parameter)
 	}
 }
 
-//@brief: This task gets the heading of the golftrolley from the kompass module
+//@brief: This task gets the heading of the golftrolley from the compass module
 //@param: -
 //@return: -
 void MeasureHeading(void* parameter)
 {
-	const float SCALE_AVG = 0.196f;
-	const float SCALE_X = 0.189f;
-	const float SCALE_Y = 0.204f;
+	//const float SCALE_AVG = 0.196f;
+	//const float SCALE_X = 0.189f;
+	//const float SCALE_Y = 0.204f;
 
-	float minX = 1e6, maxX = -1e6;
-	float minY = 1e6, maxY = -1e6;
-	unsigned long t0;
-	t0 = millis();
+	//float minX = 1e6, maxX = -1e6;
+	//float minY = 1e6, maxY = -1e6;
+	//unsigned long t0;
+	//t0 = millis();
+
+	GPSCoordinates from;
+	GPSCoordinates to;
+	bool gpsMeasureFlag = false;
+
+	float mpuHeading = 0;
+	float qmcHeading = 0;
+	float gpsHeading = 0;
+
 	while (1)
 	{
-		//if (mpu.update())
-		//{
-		//	float heading = mpu.getYaw();
-		//	if (heading < 0)
-		//	{
-		//		heading += 360;
-		//	}
-		//	heading += 15;
-		//	if (heading >= 360.0)
-		//	{
-		//		heading -= 360.0;
-		//	}
-		//	RaspPI_transmitData.fFacingDirection = heading;
-		//	Serial.println(RaspPI_transmitData.fFacingDirection);
-		//}
+		if (mpu.update()) {
+			static uint32_t prev_ms = millis();
+			if (millis() > prev_ms + 25) {
+				mpuHeading = mpu.getYaw();
+				mpu.getPitch();
+				mpu.getRoll();
 
-		//vTaskDelay(10 / portTICK_PERIOD_MS);
-
-
-
-		float xyz[3];
-		if (mag.readXYZ(xyz)) {
-			// Apply soft-iron correction
-			xyz[0] *= SCALE_AVG / SCALE_X;
-			xyz[1] *= SCALE_AVG / SCALE_Y;
+				if (mpuHeading < 0)
+				{
+					mpuHeading += 360;
+				}
+				mpuHeading += 101;
+				if (mpuHeading >= 360.0)
+				{
+					mpuHeading -= 360.0;
+				}
+				RaspPI_transmitData.fFacingDirection = mpuHeading;
+				//Serial.println(RaspPI_transmitData.fFacingDirection);
+				prev_ms = millis();
+			}
 		}
-		float heading = mag.getHeadingDeg(5.2833); // Adjust declination
-		RaspPI_transmitData.fFacingDirection = heading;
-		Serial.println(RaspPI_transmitData.fFacingDirection);
 
-		vTaskDelay(10 / portTICK_PERIOD_MS);
-
-
-		//float v[3];
-		//if (mag.readXYZ(v)) {               // Values are already in µT
-		//	minX = min(minX, v[0]);  maxX = max(maxX, v[0]);
-		//	minY = min(minY, v[1]);  maxY = max(maxY, v[1]);
+		//float xyz[3];
+		//if (mag.readXYZ(xyz)) {
+		//	// Apply soft-iron correction
+		//	xyz[0] *= SCALE_AVG / SCALE_X;
+		//	xyz[1] *= SCALE_AVG / SCALE_Y;
 		//}
+		//qmcHeading = mag.getHeadingDeg(5.2833); // Adjust declination
+		//RaspPI_transmitData.fFacingDirection = qmcHeading;
+		////Serial.println(RaspPI_transmitData.fFacingDirection);
 
 		///* Stop after 30 seconds */
 		//if (millis() - t0 > 30000) {
@@ -630,7 +636,23 @@ void MeasureHeading(void* parameter)
 		//	Serial.println("const float SCALE_Y   = " + String(scaleY, 3) + "f;");
 		//}
 
+		//if (!gpsMeasureFlag)
+		//{
+		//	gpsMeasureFlag = true;
+		//	from.dGolfTrolley_latitude = trolleyCoords.dGolfTrolley_latitude;
+		//	from.dGolfTrolley_longitude = trolleyCoords.dGolfTrolley_longitude;
+		//}
+		//if (dCalculateHaversine(from.dGolfTrolley_latitude, from.dGolfTrolley_longitude, trolleyCoords.dGolfTrolley_latitude, trolleyCoords.dGolfTrolley_longitude) > 2)
+		//{
+		//	gpsHeading = dGetTargetHeading({ from.dGolfTrolley_latitude, from.dGolfTrolley_longitude },{ trolleyCoords.dGolfTrolley_latitude, trolleyCoords.dGolfTrolley_longitude });
+		//	gpsMeasureFlag = false;
+		//}
 
+		//float fusedHeading = fuseHeading3(gpsHeading, mpuHeading, qmcHeading, 0.2, 0.4, 0.4);
+		//RaspPI_transmitData.fFacingDirection = fusedHeading;
+		//Serial.println(fusedHeading);
+
+		vTaskDelay(1 / portTICK_PERIOD_MS);
 	}
 }
 
@@ -775,45 +797,38 @@ void initHCSR04()
 //@return: -
 void initMPU9250()
 {
-	if (!mpu.setup(0x68))
-	{
-		while (true)
-		{
-			Serial.println("MPU connection failed! ; Trying to reconnect!");
-			if (mpu.setup(0x68))
-			{
-				break;
-			}
+	if (!mpu.setup(0x68)) {  // change to your own address
+		while (1) {
+			Serial.println("MPU connection failed. Please check your connection with `connection_check` example.");
 			delay(5000);
 		}
 	}
 
-	mpu.ahrs(true);
+	//mpu.ahrs(true);
 
-	mpu.selectFilter(QuatFilterSel::MADGWICK);
-	mpu.setFilterIterations(5);
+	//mpu.selectFilter(QuatFilterSel::MADGWICK);
+	//mpu.setFilterIterations(15);
 
-	mpu.setMagneticDeclination(5.2833);
+	//mpu.setMagneticDeclination(5.2833);
 
-	//// Calibration of Sensor
-	//Serial.println("Accel Gyro calibration will start in 5sec.");
-	//Serial.println("Please leave the device still on the flat plane.");
-	//mpu.verbose(true);
-	//delay(5000);
-	//mpu.calibrateAccelGyro();
+	/*Serial.println("Accel Gyro calibration will start in 5sec.");
+	Serial.println("Please leave the device still on the flat plane.");
+	mpu.verbose(true);
+	delay(5000);
+	mpu.calibrateAccelGyro();
 
-	//Serial.println("Mag calibration will start in 5sec.");
-	//Serial.println("Please Wave device in a figure eight until done.");
-	//delay(5000);
-	//mpu.calibrateMag();
+	Serial.println("Mag calibration will start in 5sec.");
+	Serial.println("Please Wave device in a figure eight until done.");
+	delay(5000);
+	mpu.calibrateMag();
 
-	//print_MPU9250_calibration();
-	//mpu.verbose(false);
+	print_MPU9250_calibration();
+	mpu.verbose(false);*/
 
-	mpu.setAccBias(68.52, -946.67, -671.34);
-	mpu.setGyroBias(-6.48, 1.79, 0.33);
-	mpu.setMagBias(521.45, 223.69, 27.74);
-	mpu.setMagScale(0.65, 1.15, 1.68);
+	mpu.setAccBias(142.83, -46.81, 24.25);
+	mpu.setGyroBias(-8.73, 2.52, -0.13);
+	mpu.setMagBias(573.59, 331.93, 8.67);
+	mpu.setMagScale(0.88, 1.16, 1.00);
 }
 
 //@brief: Initializes kompass sensor backup
@@ -827,7 +842,7 @@ void initQMC5883P()
 		while (true);
 	}
 
-	mag.setHardIronOffsets(0.004f, -0.310f);
+	//mag.setHardIronOffsets(0.004f, -0.310f);
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -840,15 +855,15 @@ void setup()
 	initGPSModule();
 	initHC12();
 	initHCSR04();
-	//initMPU9250();
-	initQMC5883P();
+	initMPU9250();
+	//initQMC5883P();
 
-	targetCoordsBuffer.push_back({ 48.191787768768535, 16.397051539658563 }); //Kalibrierkoordinate
+	//targetCoordsBuffer.push_back({ 48.191787768768535, 16.397051539658563 }); //Kalibrierkoordinate
 
-	/*targetCoordsBuffer.push_back({ 48.19167695312045, 16.397048079899708 });
-	targetCoordsBuffer.push_back({ 48.19162106865085, 16.397131909809133 });
-	targetCoordsBuffer.push_back({ 48.19173417875418, 16.39730091090654 });
-	targetCoordsBuffer.push_back({ 48.191790510174954, 16.39721976355422 });*/
+	///*targetCoordsBuffer.push_back({ 48.19167695312045, 16.397048079899708 });
+	//targetCoordsBuffer.push_back({ 48.19162106865085, 16.397131909809133 });
+	//targetCoordsBuffer.push_back({ 48.19173417875418, 16.39730091090654 });
+	//targetCoordsBuffer.push_back({ 48.191790510174954, 16.39721976355422 });*/
 
 	//targetCoordsBuffer.push_back({ 48.19176949766811, 16.39721775163639 });
 	//targetCoordsBuffer.push_back({ 48.19173686120418, 16.397243235928855 });

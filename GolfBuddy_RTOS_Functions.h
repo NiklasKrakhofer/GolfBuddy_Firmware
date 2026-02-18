@@ -34,6 +34,7 @@ void vSetDrivingdirectionMotorRight(int iDirection);
 void print_MPU9250_calibration();
 float mapFloat(float x, float in_min, float in_max, float out_min, float out_max);
 uint32_t crc24q(const uint8_t* data, uint16_t len);
+float fuseHeading3(float gpsDeg, float mpuDeg, float qmcDeg, float wGps, float wMpu, float wQmc);
 
 #endif
 
