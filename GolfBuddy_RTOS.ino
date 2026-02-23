@@ -274,9 +274,6 @@ void ReadGPSData(void* pvParameters)
 		while (gpsSerial.available() > 0)
 		{
 			gps.encode(gpsSerial.read());
-
-			/*char c = gpsSerial.read();
-			Serial.print(c);*/
 		}
 		vTaskDelay(1 / portTICK_PERIOD_MS);
 	}
@@ -431,19 +428,19 @@ void CheckSurrounding(void* pvParameter)
 {
 	while (1)
 	{
-		//if (!bIsMotorSupportActivated)
-		//{
-		//	static unsigned int sensorIndex = 0;
-		//	sensorIndex = (sensorIndex + 1) % 2;
-		//	
-		//	float fDistance = fGetMessuredDistanceofHCSR04(cSensorIDArray[sensorIndex]);
-		//	Serial.println(fDistance);
+		if (!bIsMotorSupportActivated)
+		{
+			static unsigned int sensorIndex = 0;
+			sensorIndex = (sensorIndex + 1) % 2;
+			
+			float fDistance = fGetMessuredDistanceofHCSR04(cSensorIDArray[sensorIndex]);
+			Serial.println(fDistance);
 
-		//	if (fDistance < 200)
-		//	{
-		//		bIsBreakingActive = true;
-		//	}
-		//}
+			if (fDistance < 200)
+			{
+				bIsBreakingActive = true;
+			}
+		}
 		vTaskDelay(10 / portTICK_PERIOD_MS);
 	}
 }
@@ -561,21 +558,11 @@ void BreakMotors(void* parameter)
 //@return: -
 void MeasureHeading(void* parameter)
 {
-	//const float SCALE_AVG = 0.196f;
-	//const float SCALE_X = 0.189f;
-	//const float SCALE_Y = 0.204f;
-
-	//float minX = 1e6, maxX = -1e6;
-	//float minY = 1e6, maxY = -1e6;
-	//unsigned long t0;
-	//t0 = millis();
-
 	GPSCoordinates from;
 	GPSCoordinates to;
 	bool gpsMeasureFlag = false;
 
 	float mpuHeading = 0;
-	float qmcHeading = 0;
 	float gpsHeading = 0;
 
 	while (1)
@@ -596,61 +583,26 @@ void MeasureHeading(void* parameter)
 				{
 					mpuHeading -= 360.0;
 				}
-				RaspPI_transmitData.fFacingDirection = mpuHeading;
+				//RaspPI_transmitData.fFacingDirection = mpuHeading;
 				//Serial.println(RaspPI_transmitData.fFacingDirection);
 				prev_ms = millis();
 			}
 		}
 
-		//float xyz[3];
-		//if (mag.readXYZ(xyz)) {
-		//	// Apply soft-iron correction
-		//	xyz[0] *= SCALE_AVG / SCALE_X;
-		//	xyz[1] *= SCALE_AVG / SCALE_Y;
-		//}
-		//qmcHeading = mag.getHeadingDeg(5.2833); // Adjust declination
-		//RaspPI_transmitData.fFacingDirection = qmcHeading;
-		////Serial.println(RaspPI_transmitData.fFacingDirection);
+		if (!gpsMeasureFlag)
+		{
+			gpsMeasureFlag = true;
+			from.dGolfTrolley_latitude = trolleyCoords.dGolfTrolley_latitude;
+			from.dGolfTrolley_longitude = trolleyCoords.dGolfTrolley_longitude;
+		}
+		if (dCalculateHaversine(from.dGolfTrolley_latitude, from.dGolfTrolley_longitude, trolleyCoords.dGolfTrolley_latitude, trolleyCoords.dGolfTrolley_longitude) > 2)
+		{
+			gpsHeading = dGetTargetHeading({ from.dGolfTrolley_latitude, from.dGolfTrolley_longitude },{ trolleyCoords.dGolfTrolley_latitude, trolleyCoords.dGolfTrolley_longitude });
+			gpsMeasureFlag = false;
+		}
+		float fusedHeading = fuseHeading2(gpsHeading, mpuHeading, 0.3, 0.7);
 
-		///* Stop after 30 seconds */
-		//if (millis() - t0 > 30000) {
-		//	float offX = (maxX + minX) / 2.0f;
-		//	float offY = (maxY + minY) / 2.0f;
-		//	float scaleX = (maxX - minX) / 2.0f;
-		//	float scaleY = (maxY - minY) / 2.0f;
-		//	float avg = (scaleX + scaleY) / 2.0f;
-
-		//	Serial.println("\n=== CALIBRATION RESULTS ===");
-		//	Serial.printf("Offset X = %.3f µT\n", offX);
-		//	Serial.printf("Offset Y = %.3f µT\n", offY);
-		//	Serial.printf("Scale  X = %.3f µT\n", scaleX);
-		//	Serial.printf("Scale  Y = %.3f µT\n", scaleY);
-		//	Serial.printf("Average  = %.3f µT\n", avg);
-
-		//	Serial.println("\nCopy these lines into your main sketch:");
-		//	Serial.println("mag.setHardIronOffsets(" + String(offX, 3) +
-		//		"f, " + String(offY, 3) + "f);");
-		//	Serial.println("// Soft-Iron:");
-		//	Serial.println("const float SCALE_AVG = " + String(avg, 3) + "f;");
-		//	Serial.println("const float SCALE_X   = " + String(scaleX, 3) + "f;");
-		//	Serial.println("const float SCALE_Y   = " + String(scaleY, 3) + "f;");
-		//}
-
-		//if (!gpsMeasureFlag)
-		//{
-		//	gpsMeasureFlag = true;
-		//	from.dGolfTrolley_latitude = trolleyCoords.dGolfTrolley_latitude;
-		//	from.dGolfTrolley_longitude = trolleyCoords.dGolfTrolley_longitude;
-		//}
-		//if (dCalculateHaversine(from.dGolfTrolley_latitude, from.dGolfTrolley_longitude, trolleyCoords.dGolfTrolley_latitude, trolleyCoords.dGolfTrolley_longitude) > 2)
-		//{
-		//	gpsHeading = dGetTargetHeading({ from.dGolfTrolley_latitude, from.dGolfTrolley_longitude },{ trolleyCoords.dGolfTrolley_latitude, trolleyCoords.dGolfTrolley_longitude });
-		//	gpsMeasureFlag = false;
-		//}
-
-		//float fusedHeading = fuseHeading3(gpsHeading, mpuHeading, qmcHeading, 0.2, 0.4, 0.4);
-		//RaspPI_transmitData.fFacingDirection = fusedHeading;
-		//Serial.println(fusedHeading);
+		RaspPI_transmitData.fFacingDirection = fusedHeading;
 
 		vTaskDelay(1 / portTICK_PERIOD_MS);
 	}
@@ -831,20 +783,6 @@ void initMPU9250()
 	mpu.setMagScale(0.88, 1.16, 1.00);
 }
 
-//@brief: Initializes kompass sensor backup
-//@param: -
-//@return: -
-void initQMC5883P()
-{
-	if (!mag.begin())
-	{
-		Serial.println("Initialization of QMC5883P failed!");
-		while (true);
-	}
-
-	//mag.setHardIronOffsets(0.004f, -0.310f);
-}
-
 //////////////////////////////////////////////////////////////////////////////
 // Setup
 //////////////////////////////////////////////////////////////////////////////
@@ -856,7 +794,6 @@ void setup()
 	initHC12();
 	initHCSR04();
 	initMPU9250();
-	//initQMC5883P();
 
 	//targetCoordsBuffer.push_back({ 48.191787768768535, 16.397051539658563 }); //Kalibrierkoordinate
 
@@ -874,78 +811,78 @@ void setup()
 	//targetCoordsBuffer.push_back({ 48.1918714305996, 16.39717348944421 });
 
 	xTaskCreatePinnedToCore(
-		ReceiveDataFromRaspPI,        // Funktion
-		"ReceiveSerialDataFromRaspberryPI",// Name
-		10000,                              // Stack
-		NULL,                               // Parameter
-		2,                                  // Priorität
-		&xHandleReceiveDataFromRaspberryPI,// TaskHandle
-		1                                   // Core
+		ReceiveDataFromRaspPI,
+		"Reseives data from raspberry pi from the serial port.",
+		10000,
+		NULL,
+		1,
+		&xHandleReceiveDataFromRaspberryPI,
+		1
 	);
 
 	xTaskCreatePinnedToCore(
 		TransmittDataToRaspPI,
-		"TransmittSerialDataToRaspberryPI",
+		"Transmitts the serial data from the esp to the raspi trough the serial port.",
 		10000,
 		NULL,
-		2,
+		3,
 		&xHandleTransmittDataToRaspberryPI,
 		1
 	);
 
 	xTaskCreatePinnedToCore(
 		ReadGPSData,
-		"ReadGPSCoordinatesFromGPSModule",
+		"Decodes the received NMEA String of the GPS-Module.",
 		10000,
 		NULL,
-		2,
+		4,
 		&xHandleReadGPSData,
 		1
 	);
 
 	xTaskCreatePinnedToCore(
 		ReadTemperature,
-		"ReadTemperatureFromBME",
+		"Reads the temperature from the BME280.",
 		10000,
 		NULL,
-		2,
+		6,
 		&xHandleReadTemperature,
 		1
 	);
 
 	xTaskCreatePinnedToCore(
 		MeassureMotorSpeed,
-		"MeassureMotorSpeed",
+		"Calculates the Motorspeed, based on counted pulses.",
 		10000,
 		NULL,
-		2,
+		3,
 		&xHandleMeasureMotorSpeed,
 		1
 	);
 
 	xTaskCreatePinnedToCore(
 		PlayerTracking,
-		"Follow Player if enabled",
+		"Follows tracker if enabled.",
 		10000,
 		NULL,
-		2,
+		3,
 		&xHandlePlayerTracking,
 		1
 	);
 
 	xTaskCreatePinnedToCore(
 		MotorSupport,
-		"Handle Motor Support if enabled",
+		"Handles Motor Support if enabled.",
 		10000,
 		NULL,
-		2,
+		3,
 		&xHandleMotorSupport,
 		1
 	);
 
 	xTaskCreatePinnedToCore(
 		CheckSurrounding,
-		"Check if an Obsticle is blocking the way",
+		"Check if an Obsticle is blocking the way and brakes the motors if so.",
 		10000,
 		NULL,
 		2,
@@ -955,17 +892,17 @@ void setup()
 
 	xTaskCreatePinnedToCore(
 		ReceiveDataFromTracker,
-		"Receive Data from Tracker",
+		"Receive Data from Tracker.",
 		10000,
 		NULL,
-		2,
+		3,
 		&xHandleReceiveDataFromTracker,
 		1
 	);
 
 	xTaskCreatePinnedToCore(
 		BreakMotors,
-		"Emergency Braking",
+		"Breaks the Motors.",
 		10000,
 		NULL,
 		2,
@@ -975,20 +912,20 @@ void setup()
 
 	xTaskCreatePinnedToCore(
 		MeasureHeading,
-		"Measure Heading",
+		"Measures Heading.",
 		10000,
 		NULL,
-		2,
+		3,
 		&xHandleMeasureHeading,
 		1
 	);
 
 	xTaskCreatePinnedToCore(
 		MeasureAkkuVoltage,
-		"Measure Akku Voltage",
+		"Measures Akku Voltage.",
 		10000,
 		NULL,
-		2,
+		5,
 		&xHandleMeasureAkkuVoltage,
 		1
 	);

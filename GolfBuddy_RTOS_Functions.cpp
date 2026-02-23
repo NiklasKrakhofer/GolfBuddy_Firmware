@@ -483,24 +483,50 @@ uint32_t crc24q(const uint8_t* data, uint16_t len)
 	return crc & 0xFFFFFF;
 }
 
-// wGps + wMpu + wQmc sollte = 1.0 sein
-// Beispiel: 0.2f, 0.4f, 0.4f
+//@brief: 
+//@param: 
+//@return: 
+float fuseHeading2(float deg1, float deg2, float w1, float w2)
+{
+	float sum = w1 + w2;
+	if (sum <= 0.0f) return deg1;
+	w1 /= sum;
+	w2 /= sum;
 
-float fuseHeading3(float gpsDeg, float mpuDeg, float qmcDeg, float wGps, float wMpu, float wQmc) {
+	float rad1 = radians(deg1);
+	float rad2 = radians(deg2);
 
-	// Optional: Normierung falls Summe ≠ 1
+	float x =
+		w1 * cos(rad1) +
+		w2 * cos(rad2);
+
+	float y =
+		w1 * sin(rad1) +
+		w2 * sin(rad2);
+
+	float fusedRad = atan2(y, x);
+	float fusedDeg = degrees(fusedRad);
+
+	if (fusedDeg < 0) fusedDeg += 360.0f;
+
+	return fusedDeg;
+}
+
+//@brief: 
+//@param: 
+//@return: 
+float fuseHeading3(float gpsDeg, float mpuDeg, float qmcDeg, float wGps, float wMpu, float wQmc) 
+{
 	float sum = wGps + wMpu + wQmc;
-	if (sum <= 0.0f) return gpsDeg;  // Fallback
+	if (sum <= 0.0f) return gpsDeg;
 	wGps /= sum;
 	wMpu /= sum;
 	wQmc /= sum;
 
-	// In Radiant
 	float gpsRad = radians(gpsDeg);
 	float mpuRad = radians(mpuDeg);
 	float qmcRad = radians(qmcDeg);
 
-	// Gewichtete Vektoraddition
 	float x =
 		wGps * cos(gpsRad) +
 		wMpu * cos(mpuRad) +
@@ -511,11 +537,10 @@ float fuseHeading3(float gpsDeg, float mpuDeg, float qmcDeg, float wGps, float w
 		wMpu * sin(mpuRad) +
 		wQmc * sin(qmcRad);
 
-	// Rückrechnung in Winkel
 	float fusedRad = atan2(y, x);
 	float fusedDeg = degrees(fusedRad);
 
 	if (fusedDeg < 0) fusedDeg += 360.0f;
 
-	return fusedDeg;  // 0–360°, Nord = 0
+	return fusedDeg;
 }
